@@ -54,6 +54,26 @@ class PurchaseRequest extends Model
         return $this->hasMany(StatusHistory::class)->orderBy('created_at', 'desc');
     }
 
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(PrApproval::class)->orderBy('tier_level', 'asc');
+    }
+
+    /**
+     * Get the active pending approval tier
+     */
+    public function currentPendingApproval(): ?PrApproval
+    {
+        if ($this->status !== 'submitted') {
+            return null;
+        }
+
+        return $this->approvals()
+            ->where('status', 'pending')
+            ->orderBy('tier_level', 'asc')
+            ->first();
+    }
+
     /**
      * Generate standard sequential PR number (PR-YYYYMM-XXXX)
      */

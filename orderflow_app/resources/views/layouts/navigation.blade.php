@@ -49,6 +49,29 @@
             @endif
         </a>
 
+        {{-- Antrean Persetujuan (Manager, Finance, Admin, Auditor) --}}
+        @if(Auth::user()->hasRole(['manager', 'finance', 'admin', 'auditor']))
+            @php
+                $pendingApprovalCount = app(\App\Services\ApprovalService::class)->getPendingQueueForUser(Auth::user())->count();
+            @endphp
+            <a href="{{ route('approvals.index') }}"
+                class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150
+                {{ request()->routeIs('approvals.*') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                <span class="flex-1">Antrean Approval</span>
+                @if($pendingApprovalCount > 0)
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-slate-950 font-mono shadow-xs animate-pulse">
+                        {{ $pendingApprovalCount }}
+                    </span>
+                @elseif(request()->routeIs('approvals.*'))
+                    <span class="ms-auto w-1.5 h-1.5 rounded-full bg-white/50 flex-shrink-0"></span>
+                @endif
+            </a>
+        @endif
+
         {{-- Direktori Vendor --}}
         <a href="{{ route('vendors.index') }}"
             class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150
@@ -59,6 +82,27 @@
             </svg>
             <span>Direktori Vendor</span>
             @if(request()->routeIs('vendors.*'))
+                <span class="ms-auto w-1.5 h-1.5 rounded-full bg-white/50 flex-shrink-0"></span>
+            @endif
+        </a>
+
+        {{-- Notifikasi Dalam Aplikasi (Semua Pengguna) --}}
+        @php
+            $unreadNotifCount = \App\Models\InAppNotification::where('user_id', Auth::id())->unread()->count();
+        @endphp
+        <a href="{{ route('notifications.index') }}"
+            class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150
+            {{ request()->routeIs('notifications.*') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="flex-1">Notifikasi</span>
+            @if($unreadNotifCount > 0)
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white font-mono shadow-xs">
+                    {{ $unreadNotifCount }}
+                </span>
+            @elseif(request()->routeIs('notifications.*'))
                 <span class="ms-auto w-1.5 h-1.5 rounded-full bg-white/50 flex-shrink-0"></span>
             @endif
         </a>

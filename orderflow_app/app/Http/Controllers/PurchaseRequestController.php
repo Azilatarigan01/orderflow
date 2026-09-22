@@ -7,6 +7,7 @@ use App\Models\Attachment;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestItem;
 use App\Models\StatusHistory;
+use App\Services\ApprovalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -114,15 +115,20 @@ class PurchaseRequestController extends Controller
                 'to_status' => $initialStatus,
                 'user_id' => $user->id,
                 'notes' => $isSubmitting
-                    ? 'Pengajuan baru langsung diserahkan untuk persetujuan atasan.'
+                    ? 'Pengajuan baru langsung diserahkan untuk persetujuan bertingkat.'
                     : 'Draf pengajuan pembelian berhasil dibuat.',
             ]);
+
+            // Generate approval tiers if directly submitted
+            if ($isSubmitting) {
+                app(ApprovalService::class)->generateApprovalTiers($purchaseRequest);
+            }
 
             return $purchaseRequest;
         });
 
         $message = $isSubmitting
-            ? "Purchase Request #{$pr->pr_number} berhasil dibuat dan langsung diajukan untuk persetujuan atasan."
+            ? "Purchase Request #{$pr->pr_number} berhasil dibuat dan diajukan ke antrean persetujuan."
             : "Draf Purchase Request #{$pr->pr_number} berhasil disimpan.";
 
         return redirect()->route('purchase-requests.show', $pr)->with('success', $message);
@@ -143,9 +149,14 @@ class PurchaseRequestController extends Controller
             'items',
             'attachments.uploader',
             'histories.user',
+            'approvals.department',
+            'approvals.approver',
         ]);
 
-        return view('purchase_requests.show', compact('purchaseRequest'));
+        $canApprove = app(ApprovalService::class)->canUserApprove($user, $purchaseRequest);
+        $activeTier = $purchaseRequest->currentPendingApproval();
+
+        return view('purchase_requests.show', compact('purchaseRequest', 'canApprove', 'activeTier'));
     }
 
     public function edit(PurchaseRequest $purchaseRequest)
@@ -228,6 +239,9 @@ class PurchaseRequestController extends Controller
                         ? 'Pengajuan telah diperbaiki dan diserahkan kembali untuk persetujuan.'
                         : 'Draf pengajuan diserahkan untuk persetujuan atasan.',
                 ]);
+
+                // Generate approval tiers for the newly submitted PR
+                app(ApprovalService::class)->generateApprovalTiers($purchaseRequest);
             }
         });
 
@@ -258,6 +272,8 @@ class PurchaseRequestController extends Controller
                 'user_id' => $user->id,
                 'notes' => $request->input('notes', 'Pengajuan diserahkan oleh pemohon untuk peninjauan atasan.'),
             ]);
+
+            app(ApprovalService::class)->generateApprovalTiers($purchaseRequest);
         });
 
         return redirect()->route('purchase-requests.show', $purchaseRequest)->with('success', "Purchase Request #{$purchaseRequest->pr_number} berhasil diajukan untuk persetujuan.");
