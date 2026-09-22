@@ -60,5 +60,51 @@
         <button type="submit" class="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-indigo-600/25 transition duration-200">
             Masuk ke Akun
         </button>
+
+        <!-- Quick Demo Account Fill -->
+        <div class="pt-4 border-t border-slate-800">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                <span>⚡ Akun Demo (Klik untuk Isi Otomatis)</span>
+                <span class="text-indigo-400 normal-case font-normal">Sandi: password</span>
+            </p>
+            <div class="grid grid-cols-3 gap-1.5 text-xs">
+                <button type="button" onclick="fillDemo('requester@orderflow.com')" class="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700/80 text-left transition font-mono text-[11px] flex flex-col">
+                    <span class="font-bold text-sky-400">Requester</span>
+                    <span class="text-[10px] text-slate-400 truncate">requester@...</span>
+                </button>
+                <button type="button" onclick="fillDemo('manager@orderflow.com')" class="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700/80 text-left transition font-mono text-[11px] flex flex-col">
+                    <span class="font-bold text-amber-400">Manager</span>
+                    <span class="text-[10px] text-slate-400 truncate">manager@...</span>
+                </button>
+                <button type="button" onclick="fillDemo('procurement@orderflow.com')" class="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700/80 text-left transition font-mono text-[11px] flex flex-col">
+                    <span class="font-bold text-emerald-400">Procurement</span>
+                    <span class="text-[10px] text-slate-400 truncate">procurement@...</span>
+                </button>
+                <button type="button" onclick="fillDemo('finance@orderflow.com')" class="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700/80 text-left transition font-mono text-[11px] flex flex-col">
+                    <span class="font-bold text-purple-400">Finance</span>
+                    <span class="text-[10px] text-slate-400 truncate">finance@...</span>
+                </button>
+                <button type="button" onclick="fillDemo('admin@orderflow.com')" class="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700/80 text-left transition font-mono text-[11px] flex flex-col">
+                    <span class="font-bold text-rose-400">Admin</span>
+                    <span class="text-[10px] text-slate-400 truncate">admin@...</span>
+                </button>
+                <button type="button" onclick="fillDemo('auditor@orderflow.com')" class="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700/80 text-left transition font-mono text-[11px] flex flex-col">
+                    <span class="font-bold text-indigo-400">Auditor</span>
+                    <span class="text-[10px] text-slate-400 truncate">auditor@...</span>
+                </button>
+            </div>
+        </div>
     </form>
+
+    <script>
+        function fillDemo(email) {
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            if (emailInput && passwordInput) {
+                emailInput.value = email;
+                passwordInput.value = 'password';
+                emailInput.focus();
+            }
+        }
+    </script>
 </x-guest-layout>
