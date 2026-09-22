@@ -69,6 +69,16 @@ class PurchaseRequest extends Model
         return $this->quotations()->where('is_selected', true)->first();
     }
 
+    public function purchaseOrders(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class);
+    }
+
+    public function purchaseOrder(): ?PurchaseOrder
+    {
+        return $this->purchaseOrders()->latest()->first();
+    }
+
     /**
      * Get the active pending approval tier
      */

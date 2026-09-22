@@ -5,7 +5,9 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GoodsReceiptController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\VendorController;
@@ -43,6 +45,24 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/purchase-requests/{purchase_request}/quotations', [QuotationController::class, 'store'])->name('quotations.store');
         Route::post('/purchase-requests/{purchase_request}/quotations/select', [QuotationController::class, 'selectVendor'])->name('quotations.select');
         Route::delete('/quotations/{quotation}', [QuotationController::class, 'destroy'])->name('quotations.destroy');
+    });
+
+    // Purchase Orders (PO) & Printable PDF
+    Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+    Route::get('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
+    Route::get('/purchase-orders/{purchase_order}/print', [PurchaseOrderController::class, 'printPdf'])->name('purchase-orders.print');
+
+    // Goods Receipts (GR / BAST)
+    Route::get('/goods-receipts/{goods_receipt}', [GoodsReceiptController::class, 'show'])->name('goods-receipts.show');
+
+    // PO & Receipt Operations (Restricted to Procurement and Admin)
+    Route::middleware('role:procurement,admin')->group(function () {
+        Route::get('/purchase-orders-create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
+        Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
+        Route::delete('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'destroy'])->name('purchase-orders.destroy');
+
+        Route::get('/goods-receipts-create', [GoodsReceiptController::class, 'create'])->name('goods-receipts.create');
+        Route::post('/goods-receipts', [GoodsReceiptController::class, 'store'])->name('goods-receipts.store');
     });
 
     // Vendor Management (Viewable by authenticated staff)
