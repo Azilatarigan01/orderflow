@@ -16,6 +16,12 @@
                 <a href="{{ route('purchase-requests.index') }}" class="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition">
                     Kembali ke Daftar
                 </a>
+                @if(in_array($purchaseRequest->status, ['approved', 'processing', 'completed']))
+                    <a href="{{ route('quotations.compare', $purchaseRequest) }}" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        <span>Matriks Vendor (RFQ)</span>
+                    </a>
+                @endif
                 @if($purchaseRequest->canBeEditedBy(Auth::user()))
                     <a href="{{ route('purchase-requests.edit', $purchaseRequest) }}" class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold transition">
                         ✏️ Edit Pengajuan
@@ -241,6 +247,53 @@
                             ✏️ Perbaiki Pengajuan Sekarang
                         </a>
                     @endif
+                </div>
+            @endif
+
+            <!-- RFQ & Vendor Procurement Status Banner (Visible when PR approved / processing) -->
+            @if(in_array($purchaseRequest->status, ['approved', 'processing', 'completed']))
+                @php
+                    $selectedVendorQ = $purchaseRequest->selectedQuotation();
+                    $rfqCount = $purchaseRequest->quotations()->count();
+                @endphp
+                <div class="p-6 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white shadow-xl border border-indigo-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
+                                Tahap Pengadaan Rekanan (RFQ)
+                            </span>
+                            @if($selectedVendorQ)
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    ✓ Vendor Telah Ditetapkan
+                                </span>
+                            @endif
+                        </div>
+                        <h4 class="text-base font-extrabold text-white tracking-tight">
+                            @if($selectedVendorQ)
+                                Rekanan Terpilih: <span class="text-emerald-400">{{ $selectedVendorQ->vendor?->name }}</span>
+                            @else
+                                Proses Pengumpulan Surat Penawaran (RFQ)
+                            @endif
+                        </h4>
+                        <p class="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                            @if($selectedVendorQ)
+                                Penetapan senilai <strong>{{ $selectedVendorQ->formatted_grand_total }}</strong> (#{{ $selectedVendorQ->quotation_number ?? '-' }}). Alasan: "{{ $selectedVendorQ->selection_reason }}".
+                            @else
+                                PR telah disetujui penuh. Terdapat <strong>{{ $rfqCount }} surat penawaran</strong> yang masuk dari vendor rekanan.
+                            @endif
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <a href="{{ route('quotations.compare', $purchaseRequest) }}" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/30 transition flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            <span>Buka Matriks Perbandingan</span>
+                        </a>
+                        @if(Auth::user()->hasRole(['procurement', 'admin']))
+                            <a href="{{ route('quotations.create', $purchaseRequest) }}" class="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-semibold transition">
+                                + Input Penawaran
+                            </a>
+                        @endif
+                    </div>
                 </div>
             @endif
 

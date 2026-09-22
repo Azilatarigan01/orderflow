@@ -7,6 +7,7 @@ use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\VendorController;
 
 Route::get('/', function () {
@@ -31,6 +32,18 @@ Route::middleware(['auth'])->group(function () {
     // Purchase Requests (PR)
     Route::resource('purchase-requests', PurchaseRequestController::class);
     Route::post('/purchase-requests/{purchase_request}/submit', [PurchaseRequestController::class, 'submit'])->name('purchase-requests.submit');
+
+    // RFQ & Vendor Quotation Matrix (Viewable by Procurement, Admin, Finance, Auditor)
+    Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
+    Route::get('/purchase-requests/{purchase_request}/quotations', [QuotationController::class, 'compare'])->name('quotations.compare');
+
+    // Quotation Management (Restricted to Procurement and Admin)
+    Route::middleware('role:procurement,admin')->group(function () {
+        Route::get('/purchase-requests/{purchase_request}/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
+        Route::post('/purchase-requests/{purchase_request}/quotations', [QuotationController::class, 'store'])->name('quotations.store');
+        Route::post('/purchase-requests/{purchase_request}/quotations/select', [QuotationController::class, 'selectVendor'])->name('quotations.select');
+        Route::delete('/quotations/{quotation}', [QuotationController::class, 'destroy'])->name('quotations.destroy');
+    });
 
     // Vendor Management (Viewable by authenticated staff)
     Route::get('/vendors', [VendorController::class, 'index'])->name('vendors.index');

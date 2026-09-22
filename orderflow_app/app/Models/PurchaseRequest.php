@@ -59,6 +59,16 @@ class PurchaseRequest extends Model
         return $this->hasMany(PrApproval::class)->orderBy('tier_level', 'asc');
     }
 
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class);
+    }
+
+    public function selectedQuotation(): ?Quotation
+    {
+        return $this->quotations()->where('is_selected', true)->first();
+    }
+
     /**
      * Get the active pending approval tier
      */
