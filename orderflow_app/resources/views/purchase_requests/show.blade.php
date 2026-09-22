@@ -46,6 +46,286 @@
                 </div>
             @endif
 
+            <!-- Validation Errors -->
+            @if($errors->any())
+                <div class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm space-y-1">
+                    <div class="flex items-center gap-2 font-bold text-rose-900">
+                        <svg class="w-5 h-5 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>Mohon periksa kembali tindakan Anda:</span>
+                    </div>
+                    <ul class="list-disc list-inside text-xs text-rose-700 pl-7 space-y-0.5">
+                        @foreach($errors->all() as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <!-- Interactive Approval Action Box (For authorized approvers of active tier) -->
+            @if($canApprove && $activeTier)
+                <div x-data="{ modalAction: null, notes: '' }" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-500/30">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                    Tindakan Otorisasi Anda Diperlukan
+                                </span>
+                                <span class="text-xs text-slate-300">
+                                    Tahapan Anda: <strong class="text-white">{{ $activeTier->tier_label }}</strong>
+                                </span>
+                            </div>
+                            <h3 class="text-lg font-extrabold text-white tracking-tight">Keputusan Persetujuan Pengadaan</h3>
+                            <p class="text-xs text-slate-300 max-w-xl leading-relaxed">
+                                Anda berwenang mengambil keputusan pada tahapan ini. Mohon verifikasi rincian barang, harga, dan justifikasi bisnis sebelum memberikan otorisasi.
+                            </p>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+                            <!-- Request Revision Button -->
+                            <button type="button" @click="modalAction = 'revision'; notes = ''" class="px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                Minta Revisi
+                            </button>
+
+                            <!-- Reject Button -->
+                            <button type="button" @click="modalAction = 'reject'; notes = ''" class="px-4 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                                <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                Tolak PR
+                            </button>
+
+                            <!-- Approve Button -->
+                            <button type="button" @click="modalAction = 'approve'; notes = ''" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/25 transition flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                Setujui (Approve)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Modal Confirmation & Notes Dialog -->
+                    <div x-show="modalAction !== null"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+                         style="display: none;">
+                        
+                        <div @click.away="modalAction = null" class="bg-white rounded-2xl max-w-lg w-full p-6 text-slate-900 shadow-2xl space-y-4">
+                            <!-- Approve Modal Header -->
+                            <template x-if="modalAction === 'approve'">
+                                <div>
+                                    <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    </div>
+                                    <h3 class="text-base font-bold text-slate-900">Konfirmasi Persetujuan (Approve)</h3>
+                                    <p class="text-xs text-slate-500 mt-1">
+                                        Anda akan menyetujui pengajuan PR <strong>{{ $purchaseRequest->pr_number }}</strong> pada tahapan <strong>{{ $activeTier->tier_label }}</strong>.
+                                    </p>
+                                </div>
+                            </template>
+
+                            <!-- Request Revision Modal Header -->
+                            <template x-if="modalAction === 'revision'">
+                                <div>
+                                    <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </div>
+                                    <h3 class="text-base font-bold text-slate-900">Minta Revisi ke Pemohon</h3>
+                                    <p class="text-xs text-slate-500 mt-1">
+                                        Status PR akan dikembalikan menjadi <strong>Revisi Diperlukan (Revision Required)</strong>. Berikan instruksi perbaikan yang jelas kepada pemohon.
+                                    </p>
+                                </div>
+                            </template>
+
+                            <!-- Reject Modal Header -->
+                            <template x-if="modalAction === 'reject'">
+                                <div>
+                                    <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </div>
+                                    <h3 class="text-base font-bold text-slate-900">Konfirmasi Penolakan Pengadaan (Reject)</h3>
+                                    <p class="text-xs text-slate-500 mt-1">
+                                        Pengajuan ini akan ditolak secara permanen dan tidak dapat dilanjutkan ke bagian Procurement. Alasan penolakan wajib dicatat dalam jejak audit.
+                                    </p>
+                                </div>
+                            </template>
+
+                            <!-- Form Action -->
+                            <form :action="modalAction === 'approve'
+                                    ? '{{ route('approvals.approve', $purchaseRequest) }}'
+                                    : (modalAction === 'revision'
+                                        ? '{{ route('approvals.revision', $purchaseRequest) }}'
+                                        : '{{ route('approvals.reject', $purchaseRequest) }}')"
+                                  method="POST" class="space-y-4">
+                                @csrf
+
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                        <span x-text="modalAction === 'approve' ? 'Catatan Persetujuan (Opsional)' : (modalAction === 'revision' ? 'Instruksi Perbaikan / Revisi (Wajib, Min 5 Karakter)' : 'Alasan Penolakan (Wajib, Min 5 Karakter)')"></span>
+                                        <span x-show="modalAction !== 'approve'" class="text-rose-600">*</span>
+                                    </label>
+                                    <textarea name="notes" x-model="notes" rows="3"
+                                        :required="modalAction !== 'approve'"
+                                        :placeholder="modalAction === 'approve'
+                                            ? 'Tambahkan catatan jika diperlukan (opsional)...'
+                                            : (modalAction === 'revision'
+                                                ? 'Contoh: Mohon kurangi jumlah item atau lampirkan perbandingan 3 penawaran vendor...'
+                                                : 'Contoh: Anggaran divisi tidak mencukupi untuk kuartal ini...')"
+                                        class="w-full text-xs rounded-xl border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-xs"></textarea>
+                                </div>
+
+                                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                                    <button type="button" @click="modalAction = null" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 transition">
+                                        Batal
+                                    </button>
+                                    
+                                    <template x-if="modalAction === 'approve'">
+                                        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                                            Ya, Setujui Pengajuan
+                                        </button>
+                                    </template>
+
+                                    <template x-if="modalAction === 'revision'">
+                                        <button type="submit" :disabled="notes.trim().length < 5" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                                            Kirim Permintaan Revisi
+                                        </button>
+                                    </template>
+
+                                    <template x-if="modalAction === 'reject'">
+                                        <button type="submit" :disabled="notes.trim().length < 5" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                                            Tolak Pengadaan
+                                        </button>
+                                    </template>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            @elseif($purchaseRequest->user_id === Auth::id() && $purchaseRequest->status === 'submitted')
+                <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3">
+                    <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div>
+                        <p class="font-bold text-amber-950">Pengajuan Sedang Dalam Proses Penelaahan (In Approval Queue)</p>
+                        <p class="text-amber-800 mt-0.5 leading-relaxed">
+                            Pengajuan Anda telah diserahkan dan saat ini menunggu peninjauan oleh <strong>{{ $activeTier?->tier_label ?? 'Atasan Terkait' }}</strong>. Sesuai prinsip <em>Segregation of Duties (SoD)</em>, pemohon tidak dapat menyetujui pengajuannya sendiri.
+                        </p>
+                    </div>
+                </div>
+            @endif
+
+            <!-- Multi-Tier Approval Workflow Stepper Tracker -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                            <span>Alur Persetujuan Bertingkat (Approval Workflow)</span>
+                            @if($purchaseRequest->status === 'approved')
+                                <span class="text-emerald-600 font-bold text-xs">✓ Selesai & Disetujui Penuh</span>
+                            @endif
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Jalur persetujuan ditentukan otomatis berdasarkan nilai anggaran: <strong>Rp {{ number_format($purchaseRequest->estimated_total, 0, ',', '.') }}</strong>
+                        </p>
+                    </div>
+                    <div>
+                        @if($purchaseRequest->approvals->count() > 0)
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-mono text-[11px] font-semibold">
+                                Total {{ $purchaseRequest->approvals->count() }} Tahapan
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+                @if($purchaseRequest->approvals->count() === 0)
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs flex items-center gap-3">
+                        <svg class="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <div>
+                            <p class="font-bold text-slate-800">Draf Belum Memiliki Antrean Persetujuan</p>
+                            <p class="text-slate-500 mt-0.5">Daftar approver akan dibentuk otomatis oleh sistem berdasarkan total anggaran saat Anda menekan tombol <strong>Ajukan Persetujuan (Submit)</strong> di kanan atas.</p>
+                        </div>
+                    </div>
+                @else
+                    <div class="grid grid-cols-1 md:grid-cols-{{ $purchaseRequest->approvals->count() }} gap-4 relative pt-1">
+                        @foreach($purchaseRequest->approvals->sortBy('tier_level') as $approval)
+                            @php
+                                $isCurrent = ($approval->status === 'pending' && $activeTier && $activeTier->id === $approval->id);
+                            @endphp
+                            <div class="relative flex flex-col p-4 rounded-xl border transition-all duration-200
+                                {{ $isCurrent ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/40 shadow-sm' : '' }}
+                                {{ $approval->status === 'approved' ? 'bg-emerald-50/50 border-emerald-200' : '' }}
+                                {{ $approval->status === 'rejected' ? 'bg-rose-50/50 border-rose-200' : '' }}
+                                {{ $approval->status === 'revision_required' ? 'bg-orange-50/50 border-orange-200' : '' }}
+                                {{ $approval->status === 'pending' && !$isCurrent ? 'bg-slate-50/70 border-slate-200 opacity-60' : '' }}">
+                                
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold font-mono
+                                        {{ $approval->status === 'approved' ? 'bg-emerald-600 text-white' : '' }}
+                                        {{ $approval->status === 'rejected' ? 'bg-rose-600 text-white' : '' }}
+                                        {{ $approval->status === 'revision_required' ? 'bg-orange-600 text-white' : '' }}
+                                        {{ $isCurrent ? 'bg-amber-500 text-white animate-pulse' : '' }}
+                                        {{ $approval->status === 'pending' && !$isCurrent ? 'bg-slate-200 text-slate-600' : '' }}">
+                                        @if($approval->status === 'approved')
+                                            ✓
+                                        @elseif($approval->status === 'rejected')
+                                            ✕
+                                        @elseif($approval->status === 'revision_required')
+                                            ✎
+                                        @else
+                                            {{ $approval->tier_level }}
+                                        @endif
+                                    </span>
+
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border {{ $approval->status_badge_class }}">
+                                        @if($isCurrent)
+                                            Menunggu Giliran Ini
+                                        @else
+                                            {{ $approval->status_label }}
+                                        @endif
+                                    </span>
+                                </div>
+
+                                <div class="flex-1 flex flex-col justify-between">
+                                    <div>
+                                        <h4 class="text-xs font-bold text-slate-900 leading-snug">
+                                            {{ $approval->tier_label }}
+                                        </h4>
+                                        
+                                        @if($approval->approver)
+                                            <p class="text-[11px] text-slate-700 font-medium mt-1">
+                                                Oleh: <strong class="text-slate-900">{{ $approval->approver->name }}</strong>
+                                            </p>
+                                            @if($approval->acted_at)
+                                                <p class="text-[10px] text-slate-400 mt-0.5">
+                                                    {{ $approval->acted_at->format('d M Y, H:i') }} WIB
+                                                </p>
+                                            @endif
+                                        @elseif($isCurrent)
+                                            <p class="text-[11px] text-amber-700 font-medium mt-1">
+                                                Sedang menunggu keputusan...
+                                            </p>
+                                        @else
+                                            <p class="text-[11px] text-slate-400 italic mt-1">
+                                                Menunggu tahap sebelumnya
+                                            </p>
+                                        @endif
+                                    </div>
+
+                                    @if($approval->notes)
+                                        <div class="mt-2.5 p-2 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 italic">
+                                            "{{ $approval->notes }}"
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
             <!-- PR Header Document Card -->
             <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-6">
                 <div>

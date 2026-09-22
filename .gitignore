@@ -1,4 +1,4 @@
-﻿# OrderFlow Root Gitignore
+# OrderFlow Root Gitignore
 /orderflow_app/node_modules
 /orderflow_app/public/build
 /orderflow_app/public/hot
@@ -22,3 +22,4 @@
 node_modules
 .DS_Store
 Thumbs.db
+~$*

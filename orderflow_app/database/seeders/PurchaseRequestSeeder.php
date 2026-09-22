@@ -177,6 +177,100 @@ class PurchaseRequestSeeder extends Seeder
             'created_at' => now()->subDay(),
         ]);
 
+        // Seed Approval Workflow for PR 1 (> 25M -> 3 tiers: Manager, Finance, HoD)
+        $pr1->approvals()->delete();
+        $pr1->approvals()->createMany([
+            [
+                'tier_level' => 1,
+                'role_required' => 'manager',
+                'department_id' => $itDept->id,
+                'status' => 'pending',
+            ],
+            [
+                'tier_level' => 2,
+                'role_required' => 'finance',
+                'department_id' => null,
+                'status' => 'pending',
+            ],
+            [
+                'tier_level' => 3,
+                'role_required' => 'hod',
+                'department_id' => null,
+                'status' => 'pending',
+            ],
+        ]);
+
+        // Seed Approval Workflow for PR 2 (12M -> 2 tiers: Manager approved, Finance approved)
+        $pr2->approvals()->delete();
+        $pr2->approvals()->createMany([
+            [
+                'tier_level' => 1,
+                'role_required' => 'manager',
+                'department_id' => $itDept->id,
+                'approver_id' => $manager?->id,
+                'status' => 'approved',
+                'notes' => 'Spesifikasi cloud server sesuai kebutuhan SLA sistem.',
+                'acted_at' => now()->subDays(2),
+            ],
+            [
+                'tier_level' => 2,
+                'role_required' => 'finance',
+                'department_id' => null,
+                'approver_id' => User::where('role', 'finance')->first()?->id,
+                'status' => 'approved',
+                'notes' => 'Alokasi anggaran IT kuartal IV mencukupi.',
+                'acted_at' => now()->subDay(),
+            ],
+        ]);
+
+        // Seed Approval Workflow for PR 3 (17M -> 2 tiers: Manager requested revision)
+        $pr3->approvals()->delete();
+        $pr3->approvals()->createMany([
+            [
+                'tier_level' => 1,
+                'role_required' => 'manager',
+                'department_id' => $itDept->id,
+                'approver_id' => $manager?->id,
+                'status' => 'revision_required',
+                'notes' => 'Mohon lampirkan diagram topologi rak server dan konfirmasi apakah modul SFP+ sudah termasuk dalam paket.',
+                'acted_at' => now()->subDay(),
+            ],
+            [
+                'tier_level' => 2,
+                'role_required' => 'finance',
+                'department_id' => null,
+                'status' => 'pending',
+            ],
+        ]);
+
+        // In-App Notification for requester regarding PR 3 revision
+        \App\Models\InAppNotification::updateOrCreate(
+            ['title' => 'Permintaan Revisi PR #' . $pr3->pr_number],
+            [
+                'user_id' => $requester->id,
+                'message' => 'Manager IT meminta revisi untuk pengajuan: "' . $pr3->title . '". Catatan: Mohon lampirkan diagram topologi.',
+                'link' => route('purchase-requests.show', $pr3, false),
+                'type' => 'warning',
+                'is_read' => false,
+                'created_at' => now()->subDay(),
+            ]
+        );
+
+        // In-App Notification for manager regarding PR 1 pending approval
+        if ($manager) {
+            \App\Models\InAppNotification::updateOrCreate(
+                ['title' => 'Persetujuan Diperlukan: PR #' . $pr1->pr_number],
+                [
+                    'user_id' => $manager->id,
+                    'message' => 'Pengajuan pengadaan baru "' . $pr1->title . '" dari pemohon membutuhkan otorisasi Anda pada Tier 1.',
+                    'link' => route('purchase-requests.show', $pr1, false),
+                    'type' => 'info',
+                    'is_read' => false,
+                    'created_at' => now()->subDay(),
+                ]
+            );
+        }
+
         // PR 4: Draft (Draf Pengajuan Baru)
         $pr4 = PurchaseRequest::updateOrCreate(
             ['pr_number' => 'PR-202609-0004'],

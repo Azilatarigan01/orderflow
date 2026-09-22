@@ -3,7 +3,9 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\VendorController;
 
@@ -14,6 +16,17 @@ Route::get('/', function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/switch-role/{role}', [DashboardController::class, 'switchRole'])->name('switch-role');
+
+    // Approval Workflow Queue & Actions (Manager, Finance, Admin)
+    Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+    Route::post('/approvals/{purchase_request}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
+    Route::post('/approvals/{purchase_request}/revision', [ApprovalController::class, 'requestRevision'])->name('approvals.revision');
+    Route::post('/approvals/{purchase_request}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
+
+    // In-App Notifications
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
 
     // Purchase Requests (PR)
     Route::resource('purchase-requests', PurchaseRequestController::class);
