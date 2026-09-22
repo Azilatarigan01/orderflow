@@ -24,7 +24,7 @@ class VendorManagementTest extends TestCase
         $response = $this->actingAs($user)->get(route('vendors.index'));
 
         $response->assertStatus(200);
-        $response->assertSee('Vendor Management Hub');
+        $response->assertSee('Direktori Rekanan Vendor');
     }
 
     public function test_procurement_can_access_create_vendor_page(): void
@@ -35,7 +35,7 @@ class VendorManagementTest extends TestCase
         $response = $this->actingAs($procurement)->get(route('vendors.create'));
 
         $response->assertStatus(200);
-        $response->assertSee('Tambah Rekanan Vendor Baru');
+        $response->assertSee('Registrasi Rekanan Vendor Baru');
     }
 
     public function test_requester_is_forbidden_from_accessing_create_vendor_page(): void

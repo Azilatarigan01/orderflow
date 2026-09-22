@@ -1,0 +1,24 @@
+﻿# OrderFlow Root Gitignore
+/orderflow_app/node_modules
+/orderflow_app/public/build
+/orderflow_app/public/hot
+/orderflow_app/public/storage
+/orderflow_app/storage/*.key
+/orderflow_app/vendor
+/orderflow_app/.env
+/orderflow_app/.env.backup
+/orderflow_app/.env.production
+/orderflow_app/database/database.sqlite
+/orderflow_app/database/database.sqlite-journal
+
+# Root temporary / IDE files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+node_modules
+.DS_Store
+Thumbs.db
