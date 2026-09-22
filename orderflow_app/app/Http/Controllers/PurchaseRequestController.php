@@ -283,15 +283,19 @@ class PurchaseRequestController extends Controller
 
     private function isUserAuthorizedToView($user, PurchaseRequest $purchaseRequest): bool
     {
-        if ($user->hasRole(['admin', 'procurement', 'finance', 'auditor'])) {
+        if ($user->hasRole(['admin', 'procurement', 'auditor'])) {
             return true;
         }
 
-        if ($user->hasRole('manager')) {
-            return $user->department_id === $purchaseRequest->department_id;
+        if ($user->hasRole('finance')) {
+            return in_array($purchaseRequest->status, ['submitted', 'approved', 'processing', 'completed']) || $purchaseRequest->user_id === $user->id;
         }
 
-        // Requester: only same department or self
-        return $purchaseRequest->user_id === $user->id || $user->department_id === $purchaseRequest->department_id;
+        if ($user->hasRole('manager')) {
+            return ($user->department_id === $purchaseRequest->department_id && $purchaseRequest->status !== 'draft') || $purchaseRequest->user_id === $user->id;
+        }
+
+        // Regular Requester: strictly ONLY their own PR
+        return $purchaseRequest->user_id === $user->id;
     }
 }

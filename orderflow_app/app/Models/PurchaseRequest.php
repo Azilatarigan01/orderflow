@@ -75,23 +75,32 @@ class PurchaseRequest extends Model
     }
 
     /**
-     * Scope for Department Data Isolation based on user role
+     * Scope for Data Isolation and Privacy based on user role
      */
     public function scopeAccessibleBy($query, User $user)
     {
-        if ($user->hasRole('admin') || $user->hasRole('procurement') || $user->hasRole('finance') || $user->hasRole('auditor')) {
+        if ($user->hasRole('admin') || $user->hasRole('procurement') || $user->hasRole('auditor')) {
             return $query;
         }
 
+        if ($user->hasRole('finance')) {
+            // Finance only sees submitted / reviewed PRs, or their own PRs
+            return $query->where(function ($q) use ($user) {
+                $q->whereIn('status', ['submitted', 'approved', 'processing', 'completed'])
+                  ->orWhere('user_id', $user->id);
+            });
+        }
+
         if ($user->hasRole('manager')) {
-            return $query->where('department_id', $user->department_id);
+            // Manager sees non-draft PRs from their department to review, or their own PRs
+            return $query->where(function ($q) use ($user) {
+                $q->where('department_id', $user->department_id)
+                  ->where('status', '!=', 'draft')
+                  ->orWhere('user_id', $user->id);
+            });
         }
 
-        // Requester: only their department's PRs (or their own)
-        if ($user->department_id) {
-            return $query->where('department_id', $user->department_id);
-        }
-
+        // Regular Requester: strictly ONLY their own submitted or draft PRs
         return $query->where('user_id', $user->id);
     }
 
