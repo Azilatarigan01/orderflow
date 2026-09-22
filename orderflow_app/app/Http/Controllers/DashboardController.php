@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Vendor;
 use App\Models\Department;
+use App\Models\PurchaseRequest;
 use App\Models\User;
+use App\Models\Vendor;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -13,17 +14,27 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        // General stats
+        // PR metrics
+        $totalPr = PurchaseRequest::accessibleBy($user)->count();
+        $pendingPr = PurchaseRequest::accessibleBy($user)->where('status', 'submitted')->count();
+        $revisionPr = PurchaseRequest::accessibleBy($user)->where('status', 'revision_required')->count();
+        $totalPrBudget = PurchaseRequest::accessibleBy($user)->sum('estimated_total');
+        $recentPrs = PurchaseRequest::with(['user', 'department'])->accessibleBy($user)->latest()->take(5)->get();
+
+        // Vendor stats
         $totalVendors = Vendor::count();
         $activeVendors = Vendor::where('is_active', true)->count();
         $totalDepartments = Department::count();
         $totalUsers = User::count();
-
-        // Recent vendors
         $recentVendors = Vendor::latest()->take(5)->get();
 
         return view('dashboard', compact(
             'user',
+            'totalPr',
+            'pendingPr',
+            'revisionPr',
+            'totalPrBudget',
+            'recentPrs',
             'totalVendors',
             'activeVendors',
             'totalDepartments',

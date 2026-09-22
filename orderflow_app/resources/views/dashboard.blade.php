@@ -54,36 +54,43 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
                     <div class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        <span>Total Rekanan Vendor</span>
+                        <span>Total Pengajuan PR</span>
+                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    </div>
+                    <div class="text-3xl font-extrabold text-slate-900 mt-3 tracking-tight">{{ $totalPr }}</div>
+                    <div class="text-xs text-slate-500 mt-1.5 flex items-center justify-between">
+                        <span>Pagu: <strong class="text-slate-800 font-mono">Rp {{ number_format($totalPrBudget, 0, ',', '.') }}</strong></span>
+                        <a href="{{ route('purchase-requests.index') }}" class="text-indigo-600 font-semibold hover:underline">Lihat &rarr;</a>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                    <div class="flex items-center justify-between text-xs font-semibold text-sky-600 uppercase tracking-wider">
+                        <span>Menunggu Approval</span>
+                        <span class="w-2 h-2 rounded-full bg-sky-500"></span>
+                    </div>
+                    <div class="text-3xl font-extrabold text-sky-700 mt-3 tracking-tight">{{ $pendingPr }}</div>
+                    <div class="text-xs text-slate-500 mt-1.5">Memerlukan tinjauan atasan divisi</div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                    <div class="flex items-center justify-between text-xs font-semibold text-amber-600 uppercase tracking-wider">
+                        <span>Perlu Revisi</span>
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    </div>
+                    <div class="text-3xl font-extrabold text-amber-700 mt-3 tracking-tight">{{ $revisionPr }}</div>
+                    <div class="text-xs text-slate-500 mt-1.5">Permintaan perbaikan dari reviewer</div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        <span>Rekanan Terdaftar</span>
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                     </div>
                     <div class="text-3xl font-extrabold text-slate-900 mt-3 tracking-tight">{{ $totalVendors }}</div>
                     <div class="text-xs text-slate-500 mt-1.5">
                         <span class="text-emerald-600 font-semibold">{{ $activeVendors }} aktif</span> &bull; Terverifikasi legalitas
                     </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
-                    <div class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        <span>Divisi Terdaftar</span>
-                    </div>
-                    <div class="text-3xl font-extrabold text-slate-900 mt-3 tracking-tight">{{ $totalDepartments }}</div>
-                    <div class="text-xs text-slate-500 mt-1.5">Unit kerja pemohon internal</div>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
-                    <div class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        <span>Personel Sistem Terotorisasi</span>
-                    </div>
-                    <div class="text-3xl font-extrabold text-slate-900 mt-3 tracking-tight">{{ $totalUsers }}</div>
-                    <div class="text-xs text-slate-500 mt-1.5">Akses peran RBAC aktif</div>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
-                    <div class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        <span>Standar Tata Kelola</span>
-                    </div>
-                    <div class="text-2xl font-bold text-slate-900 mt-3 tracking-tight">ISO 37001</div>
-                    <div class="text-xs text-slate-500 mt-1.5">Kepatuhan Anti Penyuapan</div>
                 </div>
             </div>
 
@@ -135,6 +142,76 @@
                         <div class="text-sm font-bold text-slate-900 mt-1">Three-Way Match</div>
                         <p class="text-xs text-slate-500 mt-1">Verifikasi & bayar invoice</p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Recent Purchase Requests -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-bold text-sm text-slate-900">Aktivitas Pengajuan Pembelian (PR) Terbaru</h4>
+                        <p class="text-xs text-slate-500">Daftar permohonan pengadaan barang/jasa internal divisi Anda</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <a href="{{ route('purchase-requests.create') }}" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Buat PR Baru
+                        </a>
+                        <a href="{{ route('purchase-requests.index') }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                            Lihat Semua PR &rarr;
+                        </a>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600 divide-y divide-slate-100">
+                        <thead class="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <tr>
+                                <th class="px-6 py-3">Nomor PR</th>
+                                <th class="px-6 py-3">Judul Pengadaan</th>
+                                <th class="px-6 py-3">Pemohon</th>
+                                <th class="px-6 py-3 text-right">Total Anggaran</th>
+                                <th class="px-6 py-3 text-center">Status</th>
+                                <th class="px-6 py-3 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 font-normal">
+                            @forelse($recentPrs as $pr)
+                                <tr class="hover:bg-slate-50/80 transition">
+                                    <td class="px-6 py-3.5 whitespace-nowrap">
+                                        <a href="{{ route('purchase-requests.show', $pr) }}" class="font-mono font-bold text-indigo-600 hover:underline">
+                                            {{ $pr->pr_number }}
+                                        </a>
+                                    </td>
+                                    <td class="px-6 py-3.5 max-w-xs truncate font-semibold text-slate-900">
+                                        {{ $pr->title }}
+                                    </td>
+                                    <td class="px-6 py-3.5 whitespace-nowrap">
+                                        {{ $pr->user?->name ?? '-' }} ({{ $pr->department?->code ?? '-' }})
+                                    </td>
+                                    <td class="px-6 py-3.5 whitespace-nowrap text-right font-mono font-bold text-slate-900">
+                                        Rp {{ number_format($pr->estimated_total, 0, ',', '.') }}
+                                    </td>
+                                    <td class="px-6 py-3.5 whitespace-nowrap text-center">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border {{ $pr->status_badge_class }}">
+                                            {{ $pr->status_label }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-3.5 whitespace-nowrap text-right">
+                                        <a href="{{ route('purchase-requests.show', $pr) }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-900">
+                                            Buka &rarr;
+                                        </a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="px-6 py-6 text-center text-slate-400">
+                                        Belum ada aktivitas pengajuan PR.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

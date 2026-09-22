@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\VendorController;
 
 Route::get('/', function () {
@@ -13,6 +14,10 @@ Route::get('/', function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/switch-role/{role}', [DashboardController::class, 'switchRole'])->name('switch-role');
+
+    // Purchase Requests (PR)
+    Route::resource('purchase-requests', PurchaseRequestController::class);
+    Route::post('/purchase-requests/{purchase_request}/submit', [PurchaseRequestController::class, 'submit'])->name('purchase-requests.submit');
 
     // Vendor Management (Viewable by authenticated staff)
     Route::get('/vendors', [VendorController::class, 'index'])->name('vendors.index');
