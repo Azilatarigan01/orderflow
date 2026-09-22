@@ -142,8 +142,8 @@
                                         </select>
                                     </td>
                                     <td class="px-3 py-2">
-                                        <input type="number" name="items[0][estimated_unit_price]" value="0" min="1" step="100" required
-                                            class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 text-right item-price" oninput="calculateSubtotal(this)">
+                                        <input type="text" inputmode="numeric" name="items[0][estimated_unit_price]" value="" placeholder="Cth: 15.000.000" required
+                                            class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 text-right item-price font-mono" oninput="formatPriceInput(this)">
                                     </td>
                                     <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 item-subtotal">
                                         Rp 0
@@ -200,10 +200,21 @@
             return 'Rp ' + new Intl.NumberFormat('id-ID').format(number);
         }
 
+        function formatPriceInput(input) {
+            let raw = input.value.replace(/[^0-9]/g, '');
+            if (raw === '') {
+                input.value = '';
+            } else {
+                input.value = new Intl.NumberFormat('id-ID').format(raw);
+            }
+            calculateSubtotal(input);
+        }
+
         function calculateSubtotal(element) {
             const row = element.closest('tr');
             const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-            const price = parseFloat(row.querySelector('.item-price').value) || 0;
+            const priceRaw = row.querySelector('.item-price').value.replace(/[^0-9]/g, '');
+            const price = parseFloat(priceRaw) || 0;
             const subtotal = qty * price;
 
             row.querySelector('.item-subtotal').textContent = formatRupiah(subtotal);
@@ -214,7 +225,8 @@
             let total = 0;
             document.querySelectorAll('.item-row').forEach(row => {
                 const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-                const price = parseFloat(row.querySelector('.item-price').value) || 0;
+                const priceRaw = row.querySelector('.item-price').value.replace(/[^0-9]/g, '');
+                const price = parseFloat(priceRaw) || 0;
                 total += (qty * price);
             });
             document.getElementById('grandTotalDisplay').textContent = formatRupiah(total);
@@ -256,8 +268,8 @@
                     </select>
                 </td>
                 <td class="px-3 py-2">
-                    <input type="number" name="items[${rowCounter}][estimated_unit_price]" value="0" min="1" step="100" required
-                        class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 text-right item-price" oninput="calculateSubtotal(this)">
+                    <input type="text" inputmode="numeric" name="items[${rowCounter}][estimated_unit_price]" value="" placeholder="Cth: 15.000.000" required
+                        class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 text-right item-price font-mono" oninput="formatPriceInput(this)">
                 </td>
                 <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 item-subtotal">
                     Rp 0

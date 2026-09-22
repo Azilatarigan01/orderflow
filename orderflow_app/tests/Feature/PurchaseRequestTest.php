@@ -90,6 +90,32 @@ class PurchaseRequestTest extends TestCase
         ]);
     }
 
+    public function test_pr_accepts_dot_formatted_prices(): void
+    {
+        $requester = User::where('role', 'requester')->first();
+
+        $response = $this->actingAs($requester)->post(route('purchase-requests.store'), [
+            'title' => 'Pengadaan Laptop 15 Juta',
+            'description' => 'Laptop spek tinggi untuk programming.',
+            'required_date' => now()->addDays(14)->toDateString(),
+            'action' => 'draft',
+            'items' => [
+                [
+                    'item_name' => 'Laptop Flagship',
+                    'specification' => 'Core i7',
+                    'quantity' => 1,
+                    'unit' => 'Unit',
+                    'estimated_unit_price' => '15.000.000', // Dot formatted input
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $pr = PurchaseRequest::where('title', 'Pengadaan Laptop 15 Juta')->first();
+        $this->assertNotNull($pr);
+        $this->assertEquals(15000000, (float) $pr->estimated_total);
+    }
+
     public function test_submitting_pr_changes_status_and_logs_history(): void
     {
         $requester = User::where('role', 'requester')->first();

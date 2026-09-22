@@ -11,6 +11,22 @@ class PurchaseRequestRequest extends FormRequest
         return auth()->check();
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('items') && is_array($this->items)) {
+            $cleanedItems = [];
+            foreach ($this->items as $index => $item) {
+                if (isset($item['estimated_unit_price'])) {
+                    // Remove dots, Rp, and spaces (e.g. "15.000.000" or "Rp 15.000.000" -> 15000000)
+                    $cleanPrice = preg_replace('/[^0-9]/', '', (string) $item['estimated_unit_price']);
+                    $item['estimated_unit_price'] = $cleanPrice !== '' ? (float) $cleanPrice : 0;
+                }
+                $cleanedItems[$index] = $item;
+            }
+            $this->merge(['items' => $cleanedItems]);
+        }
+    }
+
     public function rules(): array
     {
         return [
