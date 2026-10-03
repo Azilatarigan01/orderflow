@@ -31,5 +31,23 @@ if [ ! -L /var/www/html/public/storage ]; then
     php artisan storage:link || true
 fi
 
-# Execute main container command
+# Ensure SQLite database file exists if DB_CONNECTION is sqlite
+if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
+    touch /var/www/html/database/database.sqlite
+    chown www-data:www-data /var/www/html/database/database.sqlite || true
+fi
+
+# Auto migrate and seed if in cloud deployment
+if [ -n "$PORT" ] || [ "$APP_ENV" = "production" ]; then
+    echo "Running migrations and seeds..."
+    php artisan migrate --seed --force || true
+fi
+
+# If PORT is set (such as on Render or Cloud PaaS), start web server
+if [ -n "$PORT" ]; then
+    echo "Starting web server on port $PORT..."
+    exec php artisan serve --host=0.0.0.0 --port="$PORT"
+fi
+
+# Execute main container command (default: php-fpm for docker-compose)
 exec "$@"
