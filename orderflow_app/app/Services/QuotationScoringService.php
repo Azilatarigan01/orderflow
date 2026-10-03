@@ -105,9 +105,34 @@ class QuotationScoringService
 
             if ($totalScore > $highestScore) {
                 $highestScore = $totalScore;
-                $bestQuotationId = $quotation->id;
             }
         }
+
+        // Deterministic Multi-Tier Tie-Breaker Rule for Corporate Audit Governance:
+        // Priority 1: Highest Total Score
+        // Priority 2: Lowest Grand Total Price
+        // Priority 3: Fastest Lead Time (Delivery Days)
+        // Priority 4: Highest Vendor Historical Rating
+        // Priority 5: Earliest Submission Timestamp
+        $sortedCandidates = $quotations->sort(function ($a, $b) {
+            if ($a->score != $b->score) {
+                return $a->score < $b->score ? 1 : -1;
+            }
+            if ($a->grand_total != $b->grand_total) {
+                return $a->grand_total > $b->grand_total ? 1 : -1;
+            }
+            if ($a->estimated_delivery_days != $b->estimated_delivery_days) {
+                return $a->estimated_delivery_days > $b->estimated_delivery_days ? 1 : -1;
+            }
+            $ratingA = (float) ($a->vendor?->rating ?? 5.0);
+            $ratingB = (float) ($b->vendor?->rating ?? 5.0);
+            if ($ratingA != $ratingB) {
+                return $ratingA < $ratingB ? 1 : -1;
+            }
+            return $a->id > $b->id ? 1 : -1;
+        });
+
+        $bestQuotationId = $sortedCandidates->first()?->id;
 
         // Set best recommendation flag
         foreach ($quotations as $quotation) {
@@ -121,6 +146,51 @@ class QuotationScoringService
             'min_days' => $minDays,
             'max_warranty' => $maxWarranty,
             'max_rating' => $maxRating,
+            'methodology' => self::getMethodologyDocumentation(),
+        ];
+    }
+
+    /**
+     * Corporate Evaluation Methodology and Mathematical Formula Matrix
+     * Used for audit transparency, policy compliance, and UI explanation.
+     */
+    public static function getMethodologyDocumentation(): array
+    {
+        return [
+            'scale' => '0 - 100 Poin',
+            'components' => [
+                [
+                    'name' => 'Efisiensi Harga (Price Competitiveness)',
+                    'weight' => self::WEIGHT_PRICE . '%',
+                    'formula' => '(Harga Terendah / Harga Penawaran) × 45 Poin',
+                    'principle' => 'Nilai berbanding terbalik: Vendor dengan harga paling kompetitif mendapat poin penuh (45.0), sedangkan harga yang lebih tinggi terdepresiasi proporsional.',
+                ],
+                [
+                    'name' => 'Kecepatan Pengiriman (Lead Time)',
+                    'weight' => self::WEIGHT_DELIVERY . '%',
+                    'formula' => '(Hari Tercepat / Hari Penawaran) × 25 Poin',
+                    'principle' => 'Vendor yang mampu memenuhi barang paling cepat mendapat poin penuh (25.0). Waktu pengiriman lebih lama mendapat skor terdepresiasi.',
+                ],
+                [
+                    'name' => 'Proteksi Garansi & Purna Jual',
+                    'weight' => self::WEIGHT_WARRANTY . '%',
+                    'formula' => '(Bulan Garansi / Garansi Terpanjang) × 15 Poin',
+                    'principle' => 'Vendor dengan komitmen durasi garansi terpanjang mendapat 15.0 poin. Jika seluruh vendor tidak menyertakan garansi, diberikan skor netral baseline.',
+                ],
+                [
+                    'name' => 'Kredibilitas Rekanan (Vendor Rating)',
+                    'weight' => self::WEIGHT_RATING . '%',
+                    'formula' => '(Rating Vendor / 5.0) × 15 Poin',
+                    'principle' => 'Skor performa historis rekanan berdasarkan track record transaksi dan audit QC sebelumnya.',
+                ],
+            ],
+            'tie_breaker_hierarchy' => [
+                '1. Total Skor Gabungan Tertinggi',
+                '2. Penawaran Harga Terendah (Lowest Price Preference)',
+                '3. Waktu Pengiriman Tercepat (Shortest Lead Time)',
+                '4. Rating Historis Vendor Tertinggi',
+                '5. Waktu Registrasi Penawaran Lebih Awal (First-come First-served Timestamp)',
+            ],
         ];
     }
 }

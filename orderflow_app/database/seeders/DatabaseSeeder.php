@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             DepartmentSeeder::class,
             UserSeeder::class,
             VendorSeeder::class,
+            MeasurementUnitSeeder::class,
             PurchaseRequestSeeder::class,
         ]);
     }

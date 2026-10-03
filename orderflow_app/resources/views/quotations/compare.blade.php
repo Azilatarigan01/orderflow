@@ -21,13 +21,28 @@
                 <a href="{{ route('purchase-requests.show', $purchaseRequest) }}" class="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold shadow-xs transition">
                     Lihat PR Asli
                 </a>
-                @if($selectedQuotation && Auth::user()->hasRole(['procurement', 'admin']))
-                    <a href="{{ route('purchase-orders.create', ['purchase_request_id' => $purchaseRequest->id]) }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/25 transition flex items-center gap-1.5">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        <span>Terbitkan PO Resmi</span>
-                    </a>
+                @php
+                    $allSelectedQuotes = $purchaseRequest->selectedQuotations();
+                    $unissuedQuotes = $purchaseRequest->unissuedQuotations();
+                @endphp
+                @if($allSelectedQuotes->count() > 0 && Auth::user()->hasRole(['procurement', 'admin']))
+                    @if($allSelectedQuotes->count() === 1)
+                        <a href="{{ route('purchase-orders.create', ['purchase_request_id' => $purchaseRequest->id, 'quotation_id' => $allSelectedQuotes->first()->id]) }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/25 transition flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <span>Terbitkan PO Resmi</span>
+                        </a>
+                    @else
+                        <a href="{{ route('purchase-orders.create', ['purchase_request_id' => $purchaseRequest->id]) }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/25 transition flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                            <span>Terbitkan PO (Multi-Vendor: {{ $unissuedQuotes->count() > 0 ? $unissuedQuotes->count().' Belum Terbit' : 'Lengkap' }})</span>
+                        </a>
+                    @endif
                 @endif
-                @if(Auth::user()->hasRole(['procurement', 'admin']))
+                @if(Auth::user()->hasRole(['procurement', 'admin']) && in_array($purchaseRequest->status, ['approved', 'processing']))
+                    <button type="button" onclick="document.getElementById('fail-tender-modal').classList.remove('hidden')" class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <span>Gagal Tender / Kembalikan</span>
+                    </button>
                     <a href="{{ route('quotations.create', $purchaseRequest) }}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         <span>+ Tambah Penawaran</span>
@@ -67,9 +82,9 @@
             @endif
 
             <!-- PR Summary Header Banner -->
-            <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-xl border border-indigo-500/20">
+            <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-xl border border-indigo-500/20" x-data="{ showRfqModal: false }">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="md:col-span-2 space-y-1">
+                    <div class="space-y-1">
                         <div class="flex items-center gap-2">
                             <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-400 font-mono">{{ $purchaseRequest->pr_number }}</span>
                             <span class="text-xs text-slate-400">&bull; {{ $purchaseRequest->department?->name }}</span>
@@ -97,7 +112,54 @@
                         @endif
                         <p class="text-[10px] text-slate-400 mt-1">Tersedia {{ $quotationCount }} Surat Penawaran</p>
                     </div>
+
+                    <div class="space-y-1 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tenggat RFQ (Batas Waktu)</p>
+                            @if(Auth::user()->hasRole(['procurement', 'admin']))
+                                <button type="button" @click="showRfqModal = true" class="text-[10px] text-indigo-400 hover:text-indigo-300 underline font-semibold">
+                                    {{ $purchaseRequest->rfq_deadline ? 'Ubah' : '+ Atur' }}
+                                </button>
+                            @endif
+                        </div>
+                        @if($purchaseRequest->rfq_deadline)
+                            <p class="text-sm font-mono font-bold {{ $purchaseRequest->is_rfq_closed ? 'text-rose-400' : 'text-emerald-300' }}">
+                                {{ $purchaseRequest->formatted_rfq_deadline }}
+                            </p>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold {{ $purchaseRequest->is_rfq_closed ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' }}">
+                                {{ $purchaseRequest->is_rfq_closed ? '⏳ RFQ Ditutup' : '🟢 Masa Penawaran Aktif' }}
+                            </span>
+                        @else
+                            <p class="text-xs text-slate-400">Tidak dibatasi (Open Tender)</p>
+                        @endif
+                    </div>
                 </div>
+
+                <!-- Modal / Drawer for setting RFQ Deadline -->
+                @if(Auth::user()->hasRole(['procurement', 'admin']))
+                    <div x-show="showRfqModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl max-w-md w-full p-6 text-slate-800 shadow-2xl space-y-4 border border-slate-200" @click.outside="showRfqModal = false">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900">Atur Batas Waktu RFQ</h3>
+                                <button type="button" @click="showRfqModal = false" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+                            </div>
+                            <form method="POST" action="{{ route('quotations.rfq-deadline', $purchaseRequest) }}" class="space-y-4">
+                                @csrf
+                                @method('PATCH')
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Tanggal & Waktu Tenggat (Deadline):</label>
+                                    <input type="datetime-local" name="rfq_deadline" value="{{ $purchaseRequest->rfq_deadline ? $purchaseRequest->rfq_deadline->format('Y-m-d\TH:i') : '' }}"
+                                        class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 focus:ring-indigo-500">
+                                    <p class="text-[11px] text-slate-400 mt-1">Kosongkan jika ingin membuka penawaran tanpa batas waktu.</p>
+                                </div>
+                                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                                    <button type="button" @click="showRfqModal = false" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg">Batal</button>
+                                    <button type="submit" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm">Simpan Batas Waktu</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <!-- Quotations State Checking -->
@@ -168,6 +230,17 @@
                                                 @endif
                                                 <h4 class="font-extrabold text-sm text-slate-900 leading-snug">{{ $q->vendor?->name }}</h4>
                                                 <p class="text-[11px] text-slate-500 font-mono">No: {{ $q->quotation_number ?? '-' }}</p>
+                                                <div class="flex items-center gap-1.5 pt-0.5">
+                                                    @if($q->is_late_submission)
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300" title="Dispensasi: {{ $q->late_dispensation_reason }}">
+                                                            ⏳ Terlambat (Dispensasi)
+                                                        </span>
+                                                    @else
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
+                                                            ✓ Tepat Waktu
+                                                        </span>
+                                                    @endif
+                                                </div>
                                             </div>
                                         </th>
                                     @endforeach
@@ -316,10 +389,10 @@
                                     @foreach($quotations as $q)
                                         <td class="px-5 py-3 border-r border-slate-200 last:border-r-0 {{ $q->is_selected ? 'bg-emerald-50/20' : '' }}">
                                             @if($q->file_path)
-                                                <a href="{{ asset('storage/' . $q->file_path) }}" target="_blank"
+                                                <a href="{{ route('quotations.attachment', $q) }}" target="_blank"
                                                     class="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-indigo-700 text-xs font-semibold rounded-lg shadow-2xs transition">
                                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                                    <span>Buka Berkas</span>
+                                                    <span>Buka Berkas (Terkunci & Aman)</span>
                                                 </a>
                                             @else
                                                 <span class="text-slate-400 italic">Tidak ada lampiran</span>
@@ -380,6 +453,83 @@
                     </div>
                 </div>
 
+                <!-- Methodology Transparency Panel (Corporate Audit & Governance Compliant) -->
+                <div x-data="{ openMethodology: false }" class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                    <button type="button" @click="openMethodology = !openMethodology" class="w-full p-4 text-left flex items-center justify-between hover:bg-slate-50 transition">
+                        <div class="flex items-center gap-2.5">
+                            <span class="text-indigo-600 text-lg">📐</span>
+                            <div>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900">Transparansi Metodologi & Rumus Pembobotan Skor Sistem (0 - 100 Poin)</h4>
+                                <p class="text-[11px] text-slate-500 mt-0.5">Penjelasan formula matematis, normalisasi data, dan aturan pemutus seri (tie-breaker) untuk audit pengadaan.</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-semibold text-indigo-600 flex items-center gap-1" x-text="openMethodology ? 'Tutup Rincian ▲' : 'Lihat Formula Matematis ▼'"></span>
+                    </button>
+
+                    <div x-show="openMethodology" x-transition class="p-5 border-t border-slate-100 bg-slate-50/50 space-y-4 text-xs">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-slate-900 text-xs">1. Efisiensi Harga</span>
+                                    <span class="font-bold font-mono px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[11px]">Bobot 45%</span>
+                                </div>
+                                <p class="font-mono text-[11px] text-indigo-600 font-bold mt-1">(Harga Terendah / Harga Penawaran) × 45</p>
+                                <p class="text-[10px] text-slate-500 leading-relaxed">
+                                    Rasio terbalik: Rekanan dengan harga paling hemat memperoleh 45.0 poin. Harga yang lebih mahal terdepresiasi secara proporsional.
+                                </p>
+                            </div>
+
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-slate-900 text-xs">2. Kecepatan Kirim</span>
+                                    <span class="font-bold font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px]">Bobot 25%</span>
+                                </div>
+                                <p class="font-mono text-[11px] text-blue-600 font-bold mt-1">(Hari Tercepat / Hari Penawaran) × 25</p>
+                                <p class="text-[10px] text-slate-500 leading-relaxed">
+                                    Vendor dengan estimasi tiba paling cepat mendapat 25.0 poin penuh, mendorong pemenuhan kebutuhan operasional tepat waktu.
+                                </p>
+                            </div>
+
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-slate-900 text-xs">3. Proteksi Garansi</span>
+                                    <span class="font-bold font-mono px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[11px]">Bobot 15%</span>
+                                </div>
+                                <p class="font-mono text-[11px] text-purple-600 font-bold mt-1">(Bulan Garansi / Garansi Maks) × 15</p>
+                                <p class="text-[10px] text-slate-500 leading-relaxed">
+                                    Memberikan apresiasi pada rekanan yang menjamin ketahanan produk dan layanan purna jual resmi terlama.
+                                </p>
+                            </div>
+
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-slate-900 text-xs">4. Reputasi Vendor</span>
+                                    <span class="font-bold font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[11px]">Bobot 15%</span>
+                                </div>
+                                <p class="font-mono text-[11px] text-amber-700 font-bold mt-1">(Rating Rekanan / 5.0) × 15</p>
+                                <p class="text-[10px] text-slate-500 leading-relaxed">
+                                    Berdasarkan rekam jejak performa historis, kepatuhan mutu QC, dan integritas transaksi sebelumnya.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Tie-breaker rules -->
+                        <div class="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 flex items-start gap-2.5">
+                            <span class="text-indigo-600 text-sm">⚖️</span>
+                            <div class="text-[11px] text-indigo-950 space-y-0.5">
+                                <span class="font-bold block">Hierarki Penentuan Rekomendasi Jika Terjadi Skor Seri (Tie-Breaker Rule):</span>
+                                <p class="text-indigo-900 leading-relaxed">
+                                    Jika terdapat dua atau lebih vendor dengan skor akhir identik, sistem menggunakan urutan prioritas deterministik objektif: 
+                                    <strong>(1) Harga Lebih Rendah</strong> &rarr; 
+                                    <strong>(2) Waktu Pengiriman Lebih Cepat</strong> &rarr; 
+                                    <strong>(3) Rating Historis Lebih Tinggi</strong> &rarr; 
+                                    <strong>(4) Registrasi Penawaran Lebih Awal</strong>.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Vendor Decision & Award Panel -->
                 @if(Auth::user()->hasRole(['procurement', 'admin']))
                     <div x-data="{
@@ -404,6 +554,39 @@
                                 </p>
                             </div>
                         </div>
+
+                        <!-- Single Source Established Certificate Box -->
+                        @if($selectedQuotation && $selectedQuotation->is_single_source)
+                            <div class="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl space-y-2 text-xs">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-lg">📜</span>
+                                        <h4 class="font-extrabold text-amber-950">Sertifikat Otorisasi Penyedia Tunggal (Single Source Governance)</h4>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900">
+                                        Otorisasi Sah Direksi
+                                    </span>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-amber-900 pt-1">
+                                    <div>
+                                        <span class="text-amber-700 text-[10px] block uppercase font-bold">Kategori Diskresi:</span>
+                                        <strong class="text-xs">{{ $selectedQuotation->single_source_category_label ?? '-' }}</strong>
+                                    </div>
+                                    <div>
+                                        <span class="text-amber-700 text-[10px] block uppercase font-bold">Nomor Nota Dinas / SK:</span>
+                                        <strong class="font-mono text-xs">{{ $selectedQuotation->single_source_memo_number ?? '-' }}</strong>
+                                    </div>
+                                    <div>
+                                        <span class="text-amber-700 text-[10px] block uppercase font-bold">Pejabat Pengesah:</span>
+                                        <strong class="text-xs">{{ $selectedQuotation->single_source_approver_name ?? '-' }}</strong>
+                                    </div>
+                                </div>
+                                <div class="bg-white/80 p-2.5 rounded-lg border border-amber-200 text-amber-900 mt-1">
+                                    <span class="font-bold text-[10px] uppercase block text-amber-800">Justifikasi Teknis / Bisnis Pengadaan:</span>
+                                    <p class="mt-0.5 text-[11px] leading-relaxed">{{ $selectedQuotation->single_source_reason }}</p>
+                                </div>
+                            </div>
+                        @endif
 
                         <!-- Rule Minimum Quotation Warning -->
                         @if($ruleRequiresTwoQuotations && $quotationCount < 2)
@@ -452,7 +635,7 @@
                                 </div>
                             </div>
 
-                            <!-- Single Source Checkbox (if needed) -->
+                            <!-- Single Source Checkbox & Multi-Field Governance Form -->
                             <div class="pt-3 border-t border-slate-100">
                                 <label class="flex items-start gap-2.5 cursor-pointer">
                                     <input type="checkbox" name="is_single_source" value="1" x-model="isSingleSource"
@@ -465,13 +648,81 @@
                                     </div>
                                 </label>
 
-                                <div x-show="isSingleSource" x-transition class="mt-3 pl-6">
-                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                        Justifikasi Bisnis Single Source <span class="text-rose-500">*</span>
-                                    </label>
-                                    <textarea name="single_source_reason" rows="2" placeholder="Jelaskan alasan mengapa pengadaan ini hanya dapat dilakukan melalui vendor tunggal..."
-                                        class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">{{ old('single_source_reason', $selectedQuotation?->single_source_reason) }}</textarea>
+                                <div x-show="isSingleSource" x-transition class="mt-4 pl-6 space-y-3">
+                                    <div class="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs space-y-1">
+                                        <span class="font-bold text-amber-900">Formulir Kepatuhan Audit Penunjukan Langsung (Single Source):</span>
+                                        <p class="text-amber-800 text-[11px]">
+                                            Sesuai ketentuan audit BPK/Internal, penetapan diskresi single source wajib mendokumentasikan dasar pertimbangan, nomor nota dinas persetujuan, dan pejabat yang mengesahkan.
+                                        </p>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                                Kategori Diskresi Single Source <span class="text-rose-500">*</span>
+                                            </label>
+                                            <select name="single_source_category" class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 focus:ring-indigo-500 bg-white" :required="isSingleSource">
+                                                <option value="">-- Pilih Kategori Diskresi --</option>
+                                                <option value="sole_distributor" {{ old('single_source_category', $selectedQuotation?->single_source_category) === 'sole_distributor' ? 'selected' : '' }}>
+                                                    Distributor Tunggal / Hak Paten Resmi
+                                                </option>
+                                                <option value="standardization" {{ old('single_source_category', $selectedQuotation?->single_source_category) === 'standardization' ? 'selected' : '' }}>
+                                                    Standarisasi Perangkat / Lisensi Khusus
+                                                </option>
+                                                <option value="emergency" {{ old('single_source_category', $selectedQuotation?->single_source_category) === 'emergency' ? 'selected' : '' }}>
+                                                    Keadaan Darurat / Bencana Operasional
+                                                </option>
+                                                <option value="urgent_operational" {{ old('single_source_category', $selectedQuotation?->single_source_category) === 'urgent_operational' ? 'selected' : '' }}>
+                                                    Kebutuhan Mendesak Terikat Kontrak Proyek
+                                                </option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                                Nomor Nota Dinas / Surat Persetujuan Direksi <span class="text-rose-500">*</span>
+                                            </label>
+                                            <input type="text" name="single_source_memo_number" value="{{ old('single_source_memo_number', $selectedQuotation?->single_source_memo_number) }}"
+                                                placeholder="Cth: ND-DIR/09/2026/088 atau SK-DIREKSI/2026/014" :required="isSingleSource"
+                                                class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 focus:ring-indigo-500">
+                                        </div>
+
+                                        <div class="sm:col-span-2">
+                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                                Pejabat / Direktur Pemberi Otorisasi <span class="text-rose-500">*</span>
+                                            </label>
+                                            <input type="text" name="single_source_approver_name" value="{{ old('single_source_approver_name', $selectedQuotation?->single_source_approver_name) }}"
+                                                placeholder="Cth: Bpk. Ir. Bambang Wijaya (Direktur Operasional & IT)" :required="isSingleSource"
+                                                class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 focus:ring-indigo-500">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                            Justifikasi Teknis & Bisnis Single Source <span class="text-rose-500">*</span>
+                                        </label>
+                                        <textarea name="single_source_reason" rows="2" placeholder="Jelaskan alasan mengapa pengadaan ini hanya dapat dilakukan melalui vendor tunggal dan tidak dimungkinkan tender terbuka (minimal 10 karakter)..."
+                                            :required="isSingleSource"
+                                            class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">{{ old('single_source_reason', $selectedQuotation?->single_source_reason) }}</textarea>
+                                    </div>
                                 </div>
+                            </div>
+
+                            <!-- Multi-Vendor / Split PO Awarding Option -->
+                            <div class="pt-3 border-t border-slate-100">
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" name="is_split_award" value="1"
+                                        class="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 mt-0.5">
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold text-slate-900">Tetapkan Sebagai Pemenang Parsial (Multi-Vendor / Split PO)</span>
+                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 font-mono">Split PO</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                            Centang jika PR ini memiliki item berbeda yang dimenangkan oleh vendor berbeda (contoh: Vendor IT untuk Laptop dan Vendor Furnitur untuk Kursi). Pilihan vendor lain tidak akan dibatalkan, dan Anda dapat menerbitkan PO terpisah untuk masing-masing vendor.
+                                        </p>
+                                    </div>
+                                </label>
                             </div>
 
                             <!-- Selection Reason Textarea -->
@@ -501,6 +752,56 @@
 
             @endif
 
+        </div>
+    </div>
+
+    <!-- Modal Gagal Tender / Batalkan RFQ -->
+    <div id="fail-tender-modal" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2 text-amber-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <h3 class="font-bold text-slate-900 text-sm">Gagal Tender / Kembalikan ke Requester</h3>
+                </div>
+                <button type="button" onclick="document.getElementById('fail-tender-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+            </div>
+
+            <p class="text-xs text-slate-600 leading-relaxed">
+                Tindakan ini akan membatalkan proses tender RFQ saat ini, mengubah status PR menjadi <strong class="text-amber-700">Minta Revisi (Revision Required)</strong>, dan mengembalikan berkas ke pemohon agar spesifikasi teknis atau estimasi anggaran dapat disesuaikan.
+            </p>
+
+            <form method="POST" action="{{ route('quotations.fail-tender', $purchaseRequest) }}" class="space-y-4">
+                @csrf
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Kategori Alasan Tender Gagal *</label>
+                    <select name="failure_category" required class="w-full text-xs border border-slate-300 rounded-xl p-2.5 focus:ring-1 focus:ring-amber-500">
+                        <option value="">-- Pilih Alasan Kegagalan --</option>
+                        <option value="out_of_stock">Seluruh Vendor Menolak / Stok Habis (Out of Stock / Discontinued)</option>
+                        <option value="over_budget">Seluruh Penawaran Jauh Melampaui Pagu Anggaran PR (Over Budget)</option>
+                        <option value="no_responsive_bids">Tidak Ada Penawaran yang Memenuhi Syarat Kepatuhan (Non-Responsive)</option>
+                        <option value="specification_revision">Perlu Penyesuaian Spesifikasi Teknis / Kebutuhan Berubah</option>
+                        <option value="other">Alasan Lainnya</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Kronologi & Catatan Penjelasan *</label>
+                    <textarea name="failure_reason" rows="4" required minlength="5"
+                        placeholder="Contoh: Dari 3 vendor yang diundang, 2 menolak karena stok laptop tipe ini discontinued dari distributor, dan 1 vendor menawarkan harga Rp 22 juta (pagu anggaran PR hanya Rp 15 juta). Disarankan requester mengubah tipe processor atau menaikkan estimasi biaya."
+                        class="w-full text-xs border border-slate-300 rounded-xl p-3 focus:ring-1 focus:ring-amber-500 focus:border-amber-500"></textarea>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="document.getElementById('fail-tender-modal').classList.add('hidden')"
+                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition">
+                        Batal
+                    </button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 transition">
+                        Konfirmasi Kembalikan ke Requester
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </x-app-layout>

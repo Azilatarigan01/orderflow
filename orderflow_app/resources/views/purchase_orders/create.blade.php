@@ -29,19 +29,50 @@
                 </div>
             @endif
 
-            @if($existingPo)
-                <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                        <span>Pengajuan ini sudah memiliki PO aktif (#{{ $existingPo->po_number }}). Menerbitkan PO baru akan menjadi pesanan tambahan.</span>
+            @if(isset($existingPos) && $existingPos->count() > 0)
+                <div class="p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 text-xs space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 font-bold text-sky-900">
+                            <svg class="w-5 h-5 text-sky-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                            <span>Alur Pengadaan Multi-Vendor (Split PO): Sudah ada {{ $existingPos->count() }} PO diterbitkan untuk PR ini.</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded font-mono text-[10px] bg-sky-100 text-sky-800 font-bold">Split PO Mode</span>
                     </div>
-                    <a href="{{ route('purchase-orders.show', $existingPo) }}" class="font-bold text-amber-900 underline ml-2">Lihat PO Yang Ada</a>
+                    <div class="flex items-center gap-2 flex-wrap pt-1 border-t border-sky-200/60">
+                        @foreach($existingPos as $poItem)
+                            <a href="{{ route('purchase-orders.show', $poItem) }}" class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-sky-300 rounded-lg text-sky-800 font-mono text-[11px] hover:bg-sky-100/80 transition">
+                                <span class="font-bold">{{ $poItem->po_number }}</span>
+                                <span class="text-slate-500">({{ $poItem->vendor?->name }})</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @if(isset($selectedQuotations) && $selectedQuotations->count() > 1)
+                <div class="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-950 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <span class="font-bold text-indigo-900">Pilih Rekanan Vendor untuk Penerbitan PO:</span>
+                        <p class="text-indigo-700 text-[11px] mt-0.5">PR ini memiliki {{ $selectedQuotations->count() }} vendor terpilih untuk item terpisah. Klik vendor di sebelah kanan untuk berganti formulir PO.</p>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        @foreach($selectedQuotations as $sq)
+                            <a href="{{ route('purchase-orders.create', ['purchase_request_id' => $purchaseRequest->id, 'quotation_id' => $sq->id]) }}"
+                                class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 {{ $selectedQuotation->id === $sq->id ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-indigo-800 border border-indigo-300 hover:bg-indigo-100' }}">
+                                <span>{{ $sq->vendor?->name }}</span>
+                                @if($sq->purchaseOrder)
+                                    <span class="text-[9px] px-1 rounded bg-emerald-500 text-white font-mono">PO Terbit</span>
+                                @endif
+                            </a>
+                        @endforeach
+                    </div>
                 </div>
             @endif
 
             <form method="POST" action="{{ route('purchase-orders.store') }}" class="space-y-6">
                 @csrf
                 <input type="hidden" name="purchase_request_id" value="{{ $purchaseRequest->id }}">
+                <input type="hidden" name="quotation_id" value="{{ $selectedQuotation->id }}">
 
                 <!-- Vendor Information Card (Locked from Quotation) -->
                 <div class="bg-indigo-950 text-white rounded-2xl p-6 shadow-xl border border-indigo-900/50">
@@ -126,6 +157,63 @@
                             </label>
                             <textarea name="notes" rows="2" placeholder="Cth: Harap cantumkan nomor PO ini pada Surat Jalan dan Faktur Pajak. Pengiriman dilakukan pada jam kerja (09.00 - 17.00 WIB)."
                                 class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">{{ old('notes') }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Kebijakan Pajak (PPN) & Toleransi Over-Delivery -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900">2. Konfigurasi Perpajakan (PPN) & Toleransi Pengadaan</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Atur mode kalkulasi pajak, batas selisih pembulatan, dan persentase toleransi kelebihan kuantitas di gudang.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                Mode Kalkulasi PPN <span class="text-rose-500">*</span>
+                            </label>
+                            <select name="tax_calculation_mode" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">
+                                <option value="line_item" {{ old('tax_calculation_mode', 'line_item') === 'line_item' ? 'selected' : '' }}>
+                                    Line Item (Rincian per Baris Barang)
+                                </option>
+                                <option value="header_subtotal" {{ old('tax_calculation_mode') === 'header_subtotal' ? 'selected' : '' }}>
+                                    Header Subtotal (Akumulasi Total Subtotal)
+                                </option>
+                            </select>
+                            <p class="text-[11px] text-slate-400 mt-1">Gunakan 'Line Item' jika Faktur Pajak vendor merinci PPN per SKU.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                Tarif PPN (Tax Rate) <span class="text-rose-500">*</span>
+                            </label>
+                            <select name="tax_rate" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">
+                                <option value="11" {{ old('tax_rate', '11') == '11' ? 'selected' : '' }}>PPN 11% (Standar Berlaku)</option>
+                                <option value="12" {{ old('tax_rate') == '12' ? 'selected' : '' }}>PPN 12% (Tarif Baru UU HPP)</option>
+                                <option value="0" {{ old('tax_rate') == '0' ? 'selected' : '' }}>PPN 0% (Bebas Pajak / Rekanan Non-PKP)</option>
+                            </select>
+                            <p class="text-[11px] text-slate-400 mt-1">Tarif pajak yang dikenakan pada kontrak pembelian.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                Toleransi Over-Delivery Gudang <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="flex items-center">
+                                <input type="number" name="over_delivery_tolerance_percentage" value="{{ old('over_delivery_tolerance_percentage', 5) }}" min="0" max="50" step="0.5" required
+                                    class="w-full px-3 py-2 text-xs border border-slate-300 rounded-l-xl focus:ring-1 focus:ring-indigo-500">
+                                <span class="px-3 py-2 text-xs bg-slate-100 border border-l-0 border-slate-300 text-slate-600 rounded-r-xl font-bold">%</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1">Batas kelebihan fisik tiba yang diizinkan (Cth: 5% = pesan 100 maks terima 105).</p>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 flex items-start gap-2.5 text-xs text-indigo-950">
+                        <span class="text-indigo-600 font-bold">ℹ️</span>
+                        <div>
+                            <span class="font-bold">Rounding Tolerance PPN Otomatis:</span>
+                            <span class="text-indigo-900">Sistem mengizinkan toleransi selisih pembulatan desimal s/d <strong>Rp 100</strong> antara perhitungan sistem dan Faktur Pajak vendor untuk mencegah kegagalan rekonsiliasi finance.</span>
                         </div>
                     </div>
                 </div>

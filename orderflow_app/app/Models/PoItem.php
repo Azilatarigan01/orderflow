@@ -21,11 +21,15 @@ class PoItem extends Model
         'unit_price',
         'subtotal',
         'received_quantity',
+        'over_delivery_tolerance_percentage',
+        'over_delivered_quantity',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'received_quantity' => 'integer',
+        'over_delivery_tolerance_percentage' => 'decimal:2',
+        'over_delivered_quantity' => 'decimal:2',
         'unit_price' => 'decimal:2',
         'subtotal' => 'decimal:2',
     ];
@@ -43,6 +47,18 @@ class PoItem extends Model
     public function grItems(): HasMany
     {
         return $this->hasMany(GrItem::class);
+    }
+
+    public function getMaxAllowedQuantityAttribute(): float
+    {
+        $toleranceRate = (float) ($this->over_delivery_tolerance_percentage ?? 5.0) / 100.0;
+        return (float) $this->quantity * (1.0 + $toleranceRate);
+    }
+
+    public function getMaxOverDeliveryQuantityAttribute(): float
+    {
+        $toleranceRate = (float) ($this->over_delivery_tolerance_percentage ?? 5.0) / 100.0;
+        return round((float) $this->quantity * $toleranceRate, 2);
     }
 
     public function getRemainingQuantityAttribute(): int

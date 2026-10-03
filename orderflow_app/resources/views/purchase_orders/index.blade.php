@@ -36,7 +36,7 @@
             @endif
 
             <!-- Metric Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
                     <div>
                         <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Purchase Order</p>
@@ -72,6 +72,17 @@
 
                 <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
                     <div>
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-rose-600">Terlambat (Overdue)</p>
+                        <h4 class="text-2xl font-mono font-extrabold text-rose-600 mt-1">{{ $metrics['overdue'] }}</h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Lewat tenggat waktu</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+                    <div>
                         <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Selesai (Completed)</p>
                         <h4 class="text-2xl font-mono font-extrabold text-emerald-600 mt-1">{{ $metrics['completed'] }}</h4>
                         <p class="text-[11px] text-slate-500 mt-0.5">100% diterima lengkap</p>
@@ -95,6 +106,7 @@
                     <div class="flex items-center gap-2">
                         <select name="status" class="w-full py-2 px-3 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">
                             <option value="">Semua Status PO</option>
+                            <option value="overdue" {{ request('status') === 'overdue' ? 'selected' : '' }}>⚠️ Terlambat (Overdue)</option>
                             <option value="issued" {{ request('status') === 'issued' ? 'selected' : '' }}>Diterbitkan (Issued)</option>
                             <option value="partially_received" {{ request('status') === 'partially_received' ? 'selected' : '' }}>Diterima Sebagian</option>
                             <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Selesai (Completed)</option>
@@ -153,6 +165,11 @@
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border {{ $po->status_badge_class }}">
                                             {{ $po->status_label }}
                                         </span>
+                                        @if($po->is_overdue)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 mt-1 block whitespace-nowrap">
+                                                ⚠️ Terlambat {{ $po->overdue_days }}h
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-4 text-center">
                                         <div class="w-28 mx-auto space-y-1">

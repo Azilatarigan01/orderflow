@@ -119,42 +119,113 @@
                                 class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
                         </div>
 
-                        <!-- Service BAST Fields -->
-                        <div x-show="receiptType === 'service'" class="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                    Periode Jasa: Tanggal Mulai
-                                </label>
-                                <input type="date" name="service_period_start" value="{{ old('service_period_start') }}"
-                                    class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">
+                        <!-- Service BAST Fields (Termin, Milestone, Progress %, Nominal) -->
+                        <div x-show="receiptType === 'service'" class="md:col-span-3 space-y-4 bg-purple-50/40 p-5 rounded-2xl border border-purple-200"
+                            x-data="{
+                                prevProgress: {{ $previousServiceProgress }},
+                                currentProgress: {{ old('progress_percentage', $remainingServiceProgress) }},
+                                poTotal: {{ $purchaseOrder->grand_total }},
+                                get cumulativeProgress() {
+                                    return Math.min(100, Math.round((this.prevProgress + parseFloat(this.currentProgress || 0)) * 10) / 10);
+                                },
+                                get calculatedNominal() {
+                                    return Math.round((parseFloat(this.currentProgress || 0) / 100) * this.poTotal);
+                                },
+                                formatRupiah(num) {
+                                    return 'Rp ' + new Intl.NumberFormat('id-ID').format(num);
+                                }
+                            }">
+                            
+                            <!-- Progress Overview Tracker -->
+                            <div class="p-4 bg-white rounded-xl border border-purple-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div class="space-y-1">
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-300">
+                                        ⚡ Skema Serah Terima Jasa Berbasis Termin / Progres
+                                    </span>
+                                    <h4 class="text-xs font-bold text-slate-800">
+                                        Progres Disetujui Sebelumnya: <span class="text-purple-700 font-mono font-extrabold">{{ $previousServiceProgress }}%</span>
+                                        &bull; Sisa Belum Diserahterimakan: <span class="text-slate-600 font-mono font-extrabold">{{ $remainingServiceProgress }}%</span>
+                                    </h4>
+                                    <p class="text-[11px] text-slate-500">
+                                        Jasa tidak dihitung berdasarkan kuantitas fisik kardus/unit, melainkan melalui persentase capaian pekerjaan BAST.
+                                    </p>
+                                </div>
+                                <div class="text-left md:text-right bg-purple-50 p-2.5 rounded-xl border border-purple-100">
+                                    <span class="text-[10px] text-purple-600 uppercase font-bold tracking-wider block">Akumulasi Setelah Termin Ini:</span>
+                                    <span class="text-lg font-mono font-extrabold text-purple-900" x-text="cumulativeProgress + '% / 100%'"></span>
+                                </div>
                             </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                    Periode Jasa: Tanggal Selesai
-                                </label>
-                                <input type="date" name="service_period_end" value="{{ old('service_period_end') }}"
-                                    class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                    Penanggung Jawab Penerima / Pemeriksa Jasa
-                                </label>
-                                <input type="text" name="acceptance_approver_name" value="{{ old('acceptance_approver_name') }}" placeholder="Cth: Budi Santoso (IT Lead) & Anton Wijaya (Manager)"
-                                    class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                    Deskripsi Hasil Pekerjaan (Deliverables)
-                                </label>
-                                <textarea name="service_deliverables" rows="2" placeholder="Jelaskan deliverable pekerjaan yang telah selesai dikerjakan sesuai Service Level Agreement (SLA)..."
-                                    class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-indigo-500">{{ old('service_deliverables') }}</textarea>
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                                    Upload Dokumen Berita Acara Serah Terima (BAST)
-                                </label>
-                                <input type="file" name="bast_document" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-                                    class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Nama / Tahap Termin <span class="text-rose-500">*</span>
+                                    </label>
+                                    <input type="text" name="termin_name" value="{{ old('termin_name', $suggestedTerminName) }}" placeholder="Cth: Termin 1 (DP 30%) atau Serah Terima Akhir"
+                                        class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-purple-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Progres Termin Ini (%) <span class="text-rose-500">*</span>
+                                    </label>
+                                    <div class="relative">
+                                        <input type="number" step="0.1" min="0.1" max="{{ $remainingServiceProgress }}" name="progress_percentage"
+                                            x-model="currentProgress" required
+                                            class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-purple-500 font-mono font-bold pr-8">
+                                        <span class="absolute right-3 top-2 text-xs font-bold text-slate-400">%</span>
+                                    </div>
+                                    <span class="block text-[10px] text-slate-400 mt-0.5">Maksimum sisa: {{ $remainingServiceProgress }}%</span>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Nilai Klaim Termin Ini (Rp)
+                                    </label>
+                                    <input type="number" step="1" name="nominal_claimed" :value="calculatedNominal"
+                                        class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-purple-500 font-mono font-bold">
+                                    <span class="block text-[10px] text-slate-400 mt-0.5" x-text="'Estimasi: ' + formatRupiah(calculatedNominal)"></span>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Periode Jasa: Tanggal Mulai
+                                    </label>
+                                    <input type="date" name="service_period_start" value="{{ old('service_period_start') }}"
+                                        class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-purple-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Periode Jasa: Tanggal Selesai
+                                    </label>
+                                    <input type="date" name="service_period_end" value="{{ old('service_period_end') }}"
+                                        class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-purple-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Penanggung Jawab / Pengawas Jasa <span class="text-rose-500">*</span>
+                                    </label>
+                                    <input type="text" name="acceptance_approver_name" value="{{ old('acceptance_approver_name') }}" placeholder="Cth: Budi Santoso (Lead IT / PIC Proyek)"
+                                        class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-purple-500">
+                                </div>
+
+                                <div class="md:col-span-3">
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Deskripsi Hasil Pekerjaan & Deliverable yang Telah Selesai
+                                    </label>
+                                    <textarea name="service_deliverables" rows="2" placeholder="Jelaskan deliverable pekerjaan yang telah selesai dikerjakan sesuai Service Level Agreement (SLA)..."
+                                        class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-purple-500">{{ old('service_deliverables') }}</textarea>
+                                </div>
+
+                                <div class="md:col-span-3">
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                                        Upload Dokumen Berita Acara Serah Terima (BAST) & Laporan Progres
+                                    </label>
+                                    <input type="file" name="bast_document" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                                        class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-800 hover:file:bg-purple-200">
+                                </div>
                             </div>
                         </div>
 
@@ -210,22 +281,47 @@
                                         </td>
                                         <td class="px-4 py-3">
                                             @if($remaining > 0)
-                                                <input type="number" name="items[{{ $idx }}][quantity_received]"
-                                                    value="{{ old("items.$idx.quantity_received", $remaining) }}"
-                                                    min="0" max="{{ $remaining }}" required
-                                                    class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg text-center font-mono font-extrabold focus:ring-1 focus:ring-indigo-500">
-                                                <span class="block text-[10px] text-slate-400 text-center mt-0.5">Maks: {{ $remaining }}</span>
+                                                @php
+                                                    $uomOpts = $uomOptionsPerItem[$item->id] ?? [];
+                                                @endphp
+                                                <div class="flex items-center gap-1.5" x-data="{
+                                                    qty: {{ old("items.$idx.raw_quantity_received", $remaining) }},
+                                                    unit: '{{ old("items.$idx.received_unit", $item->unit) }}',
+                                                    baseUnit: '{{ $item->unit }}'
+                                                }">
+                                                    <input type="number" step="any" name="items[{{ $idx }}][raw_quantity_received]"
+                                                        x-model="qty"
+                                                        value="{{ old("items.$idx.raw_quantity_received", $remaining) }}"
+                                                        min="0" required
+                                                        class="w-20 px-2 py-1.5 text-xs border border-slate-300 rounded-lg text-center font-mono font-extrabold focus:ring-1 focus:ring-indigo-500">
+                                                    
+                                                    @if(count($uomOpts) > 1)
+                                                        <select name="items[{{ $idx }}][received_unit]" x-model="unit"
+                                                            class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-indigo-500 font-semibold bg-slate-50">
+                                                            @foreach($uomOpts as $code => $opt)
+                                                                <option value="{{ $code }}" @selected(old("items.$idx.received_unit", $item->unit) === $code)>
+                                                                    {{ $code }} {{ $opt['is_base'] ? '(PO)' : '' }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    @else
+                                                        <input type="hidden" name="items[{{ $idx }}][received_unit]" value="{{ $item->unit }}">
+                                                        <span class="text-xs font-mono font-bold text-slate-500 px-1">{{ $item->unit }}</span>
+                                                    @endif
+                                                </div>
+                                                <span class="block text-[10px] text-slate-400 mt-1">Sisa PO: {{ $remaining }} {{ $item->unit }}</span>
                                             @else
-                                                <input type="hidden" name="items[{{ $idx }}][quantity_received]" value="0">
+                                                <input type="hidden" name="items[{{ $idx }}][raw_quantity_received]" value="0">
+                                                <input type="hidden" name="items[{{ $idx }}][received_unit]" value="{{ $item->unit }}">
                                                 <span class="text-center block text-emerald-600 font-bold text-[11px]">✓ Selesai</span>
                                             @endif
                                         </td>
                                         <td class="px-4 py-3">
                                             @if($remaining > 0)
-                                                <input type="number" name="items[{{ $idx }}][quantity_rejected]"
-                                                    value="{{ old("items.$idx.quantity_rejected", 0) }}"
-                                                    min="0" max="{{ $remaining }}"
-                                                    class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg text-center font-mono text-rose-600">
+                                                <input type="number" step="any" name="items[{{ $idx }}][raw_quantity_rejected]"
+                                                    value="{{ old("items.$idx.raw_quantity_rejected", 0) }}"
+                                                    min="0"
+                                                    class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg text-center font-mono text-rose-600 font-bold focus:ring-1 focus:ring-rose-500">
                                             @else
                                                 <span class="text-center block text-slate-400">-</span>
                                             @endif

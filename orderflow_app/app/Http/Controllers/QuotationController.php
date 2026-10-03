@@ -9,6 +9,7 @@ use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\StatusHistory;
 use App\Models\Vendor;
+use App\Services\AuditTrailService;
 use App\Services\QuotationScoringService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,7 @@ class QuotationController extends Controller
             'quotationCount' => $quotationCount,
             'hasEnoughQuotations' => $hasEnoughQuotations,
             'selectedQuotation' => $selectedQuotation,
+            'methodology' => $evaluation['methodology'] ?? [],
         ]);
     }
 
@@ -95,8 +97,29 @@ class QuotationController extends Controller
         // Only active vendors
         $existingVendorIds = $purchaseRequest->quotations()->pluck('vendor_id')->toArray();
         $vendors = Vendor::where('is_active', true)->orderBy('name')->get();
+        $isRfqExpired = $purchaseRequest->is_rfq_closed;
 
-        return view('quotations.create', compact('purchaseRequest', 'vendors', 'existingVendorIds'));
+        return view('quotations.create', compact('purchaseRequest', 'vendors', 'existingVendorIds', 'isRfqExpired'));
+    }
+
+    /**
+     * Update RFQ deadline for a PR
+     */
+    public function updateRfqDeadline(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        $request->validate([
+            'rfq_deadline' => ['nullable', 'date'],
+        ]);
+
+        $purchaseRequest->update([
+            'rfq_deadline' => $request->rfq_deadline,
+        ]);
+
+        $msg = $request->rfq_deadline 
+            ? "Batas waktu penawaran (RFQ Deadline) berhasil diperbarui menjadi {$purchaseRequest->fresh()->formatted_rfq_deadline}."
+            : "Batas waktu penawaran (RFQ Deadline) dinonaktifkan (Open Tender).";
+
+        return back()->with('success', $msg);
     }
 
     /**
@@ -106,7 +129,25 @@ class QuotationController extends Controller
     {
         $user = auth()->user();
 
-        $quotation = DB::transaction(function () use ($request, $purchaseRequest, $user) {
+        // RFQ Deadline check & late dispensation validation
+        if ($purchaseRequest->rfq_deadline && now()->isAfter($purchaseRequest->rfq_deadline)) {
+            $allowLate = $request->boolean('allow_late_submission');
+            $reason = trim((string) $request->input('late_dispensation_reason'));
+
+            if (!$allowLate || strlen($reason) < 10) {
+                return back()->withInput()->withErrors([
+                    'rfq_deadline' => "Batas waktu RFQ untuk PR ini telah berakhir pada {$purchaseRequest->formatted_rfq_deadline}. Penerimaan penawaran yang masuk melewati batas waktu wajib mencentang 'Dispensasi Keterlambatan' dan menyertakan alasan justifikasi (minimal 10 karakter)."
+                ]);
+            }
+
+            $submissionStatus = 'late_with_dispensation';
+            $lateReason = $reason;
+        } else {
+            $submissionStatus = 'on_time';
+            $lateReason = null;
+        }
+
+        $quotation = DB::transaction(function () use ($request, $purchaseRequest, $user, $submissionStatus, $lateReason) {
             $subtotal = 0;
             $itemsData = [];
 
@@ -131,7 +172,8 @@ class QuotationController extends Controller
 
             $filePath = null;
             if ($request->hasFile('attachment')) {
-                $filePath = $request->file('attachment')->store('quotation_files', 'public');
+                // Store in private local disk for confidentiality & compliance
+                $filePath = $request->file('attachment')->store('private/quotations', 'local');
             }
 
             $quotation = Quotation::create([
@@ -146,6 +188,8 @@ class QuotationController extends Controller
                 'warranty_months' => $request->warranty_months ?? 0,
                 'warranty_info' => $request->warranty_info,
                 'valid_until' => $request->valid_until,
+                'submission_status' => $submissionStatus,
+                'late_dispensation_reason' => $lateReason,
                 'file_path' => $filePath,
                 'notes' => $request->notes,
                 'created_by' => $user->id,
@@ -161,8 +205,10 @@ class QuotationController extends Controller
             return $quotation;
         });
 
+        $lateNotice = $quotation->is_late_submission ? " (Tercatat sebagai Dispensasi Keterlambatan)" : "";
+
         return redirect()->route('quotations.compare', $purchaseRequest)
-            ->with('success', "Penawaran dari {$quotation->vendor?->name} berhasil dicatat.");
+            ->with('success', "Penawaran dari {$quotation->vendor?->name} berhasil dicatat{$lateNotice}.");
     }
 
     /**
@@ -194,8 +240,15 @@ class QuotationController extends Controller
 
         if ($isSingleSource) {
             $rules['single_source_reason'] = ['required', 'string', 'min:10'];
-            $messages['single_source_reason.required'] = 'Alasan penetapan Penyedia Tunggal (Single Source) wajib dijelaskan.';
+            $rules['single_source_category'] = ['required', 'in:emergency,sole_distributor,standardization,urgent_operational'];
+            $rules['single_source_memo_number'] = ['required', 'string', 'min:3', 'max:100'];
+            $rules['single_source_approver_name'] = ['required', 'string', 'min:3', 'max:150'];
+
+            $messages['single_source_reason.required'] = 'Alasan justifikasi penetapan Penyedia Tunggal (Single Source) wajib dijelaskan.';
             $messages['single_source_reason.min'] = 'Alasan Single Source minimal 10 karakter.';
+            $messages['single_source_category.required'] = 'Kategori diskresi Single Source wajib dipilih.';
+            $messages['single_source_memo_number.required'] = 'Nomor Nota Dinas / Surat Persetujuan Direksi wajib diisi untuk kepatuhan audit.';
+            $messages['single_source_approver_name.required'] = 'Nama Pejabat / Direktur yang memberikan otorisasi Single Source wajib diisi.';
         }
 
         $request->validate($rules, $messages);
@@ -212,15 +265,21 @@ class QuotationController extends Controller
         }
 
         $user = auth()->user();
+        $isSplitAward = $request->boolean('is_split_award');
 
-        DB::transaction(function () use ($purchaseRequest, $selectedQuotation, $request, $isSingleSource, $user) {
-            // Deselect previous
-            $purchaseRequest->quotations()->update([
-                'is_selected' => false,
-                'selection_reason' => null,
-                'is_single_source' => false,
-                'single_source_reason' => null,
-            ]);
+        DB::transaction(function () use ($purchaseRequest, $selectedQuotation, $request, $isSingleSource, $isSplitAward, $user) {
+            // Only deselect other quotations if not in multi-vendor / split award mode
+            if (!$isSplitAward) {
+                $purchaseRequest->quotations()->where('id', '!=', $selectedQuotation->id)->update([
+                    'is_selected' => false,
+                    'selection_reason' => null,
+                    'is_single_source' => false,
+                    'single_source_reason' => null,
+                    'single_source_category' => null,
+                    'single_source_memo_number' => null,
+                    'single_source_approver_name' => null,
+                ]);
+            }
 
             // Select chosen quotation
             $selectedQuotation->update([
@@ -228,6 +287,9 @@ class QuotationController extends Controller
                 'selection_reason' => $request->selection_reason,
                 'is_single_source' => $isSingleSource,
                 'single_source_reason' => $isSingleSource ? $request->single_source_reason : null,
+                'single_source_category' => $isSingleSource ? $request->single_source_category : null,
+                'single_source_memo_number' => $isSingleSource ? $request->single_source_memo_number : null,
+                'single_source_approver_name' => $isSingleSource ? $request->single_source_approver_name : null,
             ]);
 
             // Update PR status to 'processing'
@@ -236,9 +298,11 @@ class QuotationController extends Controller
 
             // Record status history audit trail
             $vendorName = $selectedQuotation->vendor->name;
-            $notes = "Procurement menetapkan vendor: {$vendorName} (#{$selectedQuotation->quotation_number}) senilai {$selectedQuotation->formatted_grand_total}. Alasan: {$request->selection_reason}";
+            $awardType = $isSplitAward ? "Pemenang Multi-Vendor (Split PO)" : "Pemenang Pengadaan";
+            $notes = "Procurement menetapkan vendor: {$vendorName} (#{$selectedQuotation->quotation_number}) sebagai {$awardType} senilai {$selectedQuotation->formatted_grand_total}. Alasan: {$request->selection_reason}";
             if ($isSingleSource) {
-                $notes .= " [Single Source: {$request->single_source_reason}]";
+                $catLabel = $selectedQuotation->single_source_category_label;
+                $notes .= " [Single Source Diskresi: {$catLabel} | Memo: {$request->single_source_memo_number} | Otorisasi: {$request->single_source_approver_name} | Justifikasi: {$request->single_source_reason}]";
             }
 
             StatusHistory::create([
@@ -285,5 +349,113 @@ class QuotationController extends Controller
         $this->scoringService->evaluateQuotations($pr);
 
         return back()->with('success', "Penawaran dari {$vendorName} telah dihapus.");
+    }
+
+    /**
+     * Poin 5: Secure Stream Document for Quotations
+     * Hanya boleh diunduh/dilihat oleh Procurement, Admin, Finance, Auditor, atau Requester pemilik PR terkait.
+     */
+    public function downloadAttachment(Quotation $quotation)
+    {
+        $user = auth()->user();
+
+        // Authorization check
+        $purchaseRequest = $quotation->purchaseRequest;
+        $isAuthorized = $user->hasRole(['procurement', 'admin', 'auditor', 'finance'])
+            || ($purchaseRequest && $purchaseRequest->user_id === $user->id);
+
+        if (!$isAuthorized) {
+            abort(403, 'Akses Ditolak: Anda tidak memiliki wewenang untuk melihat berkas rahasia penawaran vendor ini.');
+        }
+
+        if (!$quotation->file_path) {
+            abort(404, 'Berkas penawaran tidak ditemukan.');
+        }
+
+        // Support both old public disk paths and new local private disk paths seamlessly
+        $disk = Storage::disk('local')->exists($quotation->file_path) ? 'local' : 'public';
+        if (!Storage::disk($disk)->exists($quotation->file_path)) {
+            abort(404, 'File dokumen tidak ditemukan di server.');
+        }
+
+        return Storage::disk($disk)->response($quotation->file_path);
+    }
+
+    /**
+     * Fail / cancel RFQ tender and return PR to requester for revision
+     */
+    public function failTender(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        $user = auth()->user();
+        if (! $user->hasRole(['procurement', 'admin'])) {
+            abort(403, 'Hanya tim Procurement atau Administrator yang berwenang membatalkan tender pengadaan.');
+        }
+
+        $validated = $request->validate([
+            'failure_category' => 'required|in:out_of_stock,over_budget,no_responsive_bids,specification_revision,other',
+            'failure_reason'   => 'required|string|min:5|max:1000',
+        ], [
+            'failure_category.required' => 'Kategori alasan kegagalan tender wajib dipilih.',
+            'failure_reason.required'   => 'Penjelasan rinci alasan tender gagal wajib dicantumkan.',
+            'failure_reason.min'        => 'Penjelasan alasan minimal 5 karakter.',
+        ]);
+
+        $categoryLabels = [
+            'out_of_stock'           => 'Stok Tidak Tersedia / Discontinued',
+            'over_budget'            => 'Seluruh Penawaran Melampaui Pagu Anggaran',
+            'no_responsive_bids'     => 'Tidak Ada Penawaran yang Memenuhi Syarat (Non-Responsive)',
+            'specification_revision' => 'Perlu Penyesuaian Spesifikasi Teknis',
+            'other'                  => 'Alasan Lainnya',
+        ];
+
+        $catLabel = $categoryLabels[$validated['failure_category']] ?? 'Tender Gagal';
+        $oldStatus = $purchaseRequest->status;
+
+        DB::transaction(function () use ($purchaseRequest, $validated, $catLabel, $oldStatus, $user) {
+            // Deselect any selected quotation
+            $purchaseRequest->quotations()->update([
+                'is_selected' => false,
+            ]);
+
+            // Update PR status back to revision_required so Requester can revise
+            $purchaseRequest->update([
+                'status' => 'revision_required',
+            ]);
+
+            // Log on StatusHistory
+            StatusHistory::create([
+                'purchase_request_id' => $purchaseRequest->id,
+                'from_status'         => $oldStatus,
+                'to_status'           => 'revision_required',
+                'user_id'             => $user->id,
+                'notes'               => "Tender Pengadaan RFQ Dibatalkan oleh Procurement [{$catLabel}]: {$validated['failure_reason']}. Berkas dikembalikan ke pemohon untuk revisi spesifikasi atau penyesuaian pagu anggaran.",
+            ]);
+
+            // Record SHA-256 Audit Trail
+            AuditTrailService::record(
+                'rfq_tender_failed',
+                $purchaseRequest,
+                $purchaseRequest->pr_number,
+                beforeState: ['status' => $oldStatus],
+                afterState: [
+                    'status' => 'revision_required',
+                    'failure_category' => $validated['failure_category'],
+                    'failure_reason' => $validated['failure_reason'],
+                ],
+                description: "{$user->name} membatalkan proses tender RFQ PR {$purchaseRequest->pr_number} [{$catLabel}]. Alasan: {$validated['failure_reason']}"
+            );
+
+            // Multi-channel notification to Requester
+            InAppNotification::create([
+                'user_id' => $purchaseRequest->user_id,
+                'title'   => "Tender Pengadaan Gagal: PR #{$purchaseRequest->pr_number}",
+                'message' => "Proses tender RFQ untuk '{$purchaseRequest->title}' gagal ({$catLabel}): {$validated['failure_reason']}. Pengajuan dikembalikan ke Anda untuk revisi.",
+                'link'    => route('purchase-requests.show', $purchaseRequest),
+                'type'    => 'rfq_failed',
+            ]);
+        });
+
+        return redirect()->route('purchase-requests.show', $purchaseRequest)
+            ->with('success', "Proses tender berhasil dibatalkan. Pengajuan PR #{$purchaseRequest->pr_number} telah dikembalikan ke pemohon dengan status revisi.");
     }
 }

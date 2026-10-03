@@ -27,7 +27,26 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('purchase-requests.store') }}" enctype="multipart/form-data" class="space-y-6">
+            <!-- Draft Recovery Notification Bar -->
+            <div id="draftRecoveryBar" class="hidden mb-6 p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-xl">💾</span>
+                    <div>
+                        <p class="font-bold text-xs">Ditemukan Draf Pengajuan yang Tersimpan Otomatis</p>
+                        <p class="text-[11px] text-amber-800" id="draftTimestampText">Terakhir disimpan pada: -</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="restoreSavedDraft()" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs transition">
+                        Pulihkan Draf
+                    </button>
+                    <button type="button" onclick="discardSavedDraft()" class="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-medium transition">
+                        Abaikan & Hapus
+                    </button>
+                </div>
+            </div>
+
+            <form id="prCreateForm" method="POST" action="{{ route('purchase-requests.store') }}" enctype="multipart/form-data" class="space-y-6">
                 @csrf
 
                 <!-- Section 1: Informasi Dasar Pengadaan -->
@@ -136,9 +155,12 @@
                                             <option value="Pcs">Pcs</option>
                                             <option value="Box">Box</option>
                                             <option value="Rim">Rim</option>
-                                            <option value="Paket">Paket</option>
+                                            <option value="Paket">Paket (Jasa/Proyek)</option>
+                                            <option value="Layanan">Layanan</option>
+                                            <option value="Bulan">Bulan (Layanan Berkala)</option>
+                                            <option value="Proyek">Proyek</option>
+                                            <option value="Sesi">Sesi</option>
                                             <option value="Set">Set</option>
-                                            <option value="Bulan">Bulan (Layanan)</option>
                                         </select>
                                     </td>
                                     <td class="px-3 py-2">
@@ -173,9 +195,20 @@
 
                 <!-- Form Action Buttons -->
                 <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
-                    <p class="text-xs text-slate-500">
-                        * PR dapat disimpan sebagai draf terlebih dahulu atau langsung diajukan ke atasan divisi.
-                    </p>
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span id="sessionStatusBadge">Sesi Aktif & Terlindungi (Anti-419)</span>
+                            </span>
+                            <span id="autoSaveStatusText" class="text-[11px] text-slate-400">
+                                Auto-save draf aktif
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-slate-400">
+                            * PR dapat disimpan sebagai draf terlebih dahulu atau langsung diajukan ke atasan divisi.
+                        </p>
+                    </div>
                     <div class="flex items-center gap-3">
                         <button type="submit" name="action" value="draft"
                             class="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition">
@@ -192,9 +225,11 @@
         </div>
     </div>
 
-    <!-- Interactive JavaScript for Dynamic Item Rows & Live Subtotal Calculations -->
+    <!-- Interactive JavaScript for Dynamic Item Rows, Auto-Save & Session Keep-Alive -->
     <script>
         let rowCounter = 1;
+        const DRAFT_KEY = 'orderflow_pr_create_draft_{{ Auth::id() }}';
+        let autoSaveTimer = null;
 
         function formatRupiah(number) {
             return 'Rp ' + new Intl.NumberFormat('id-ID').format(number);
@@ -219,6 +254,7 @@
 
             row.querySelector('.item-subtotal').textContent = formatRupiah(subtotal);
             updateGrandTotal();
+            triggerAutoSave();
         }
 
         function updateGrandTotal() {
@@ -238,37 +274,38 @@
             });
         }
 
-        function addItemRow() {
+        function addItemRow(initialData = null) {
             const tbody = document.getElementById('itemsBody');
             const newRow = document.createElement('tr');
             newRow.className = 'item-row hover:bg-slate-50/50';
+            const currentCount = rowCounter++;
+
             newRow.innerHTML = `
                 <td class="px-3 py-2 text-center text-slate-400 font-mono row-index">${tbody.children.length + 1}</td>
                 <td class="px-3 py-2">
-                    <input type="text" name="items[${rowCounter}][item_name]" required placeholder="Nama barang / jasa"
-                        class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500">
+                    <input type="text" name="items[${currentCount}][item_name]" required placeholder="Nama barang / jasa"
+                        value="${initialData ? (initialData.item_name || '') : ''}"
+                        class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 item-name" oninput="triggerAutoSave()">
                 </td>
                 <td class="px-3 py-2">
-                    <input type="text" name="items[${rowCounter}][specification]" placeholder="Spesifikasi teknis"
-                        class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500">
+                    <input type="text" name="items[${currentCount}][specification]" placeholder="Spesifikasi teknis"
+                        value="${initialData ? (initialData.specification || '') : ''}"
+                        class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 item-spec" oninput="triggerAutoSave()">
                 </td>
                 <td class="px-3 py-2">
-                    <input type="number" name="items[${rowCounter}][quantity]" value="1" min="1" required
+                    <input type="number" name="items[${currentCount}][quantity]" value="${initialData ? (initialData.quantity || 1) : 1}" min="1" required
                         class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 item-qty" oninput="calculateSubtotal(this)">
                 </td>
                 <td class="px-3 py-2">
-                    <select name="items[${rowCounter}][unit]" required class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500">
-                        <option value="Unit" selected>Unit</option>
-                        <option value="Pcs">Pcs</option>
-                        <option value="Box">Box</option>
-                        <option value="Rim">Rim</option>
-                        <option value="Paket">Paket</option>
-                        <option value="Set">Set</option>
-                        <option value="Bulan">Bulan (Layanan)</option>
+                    <select name="items[${currentCount}][unit]" required class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 item-unit" onchange="triggerAutoSave()">
+                        ${['Unit', 'Pcs', 'Box', 'Rim', 'Paket', 'Layanan', 'Bulan', 'Proyek', 'Sesi', 'Set'].map(u => 
+                            `<option value="${u}" ${(initialData && initialData.unit === u) ? 'selected' : (u==='Unit'?'selected':'')}>${u}</option>`
+                        ).join('')}
                     </select>
                 </td>
                 <td class="px-3 py-2">
-                    <input type="text" inputmode="numeric" name="items[${rowCounter}][estimated_unit_price]" value="" placeholder="Cth: 15.000.000" required
+                    <input type="text" inputmode="numeric" name="items[${currentCount}][estimated_unit_price]"
+                        value="${initialData ? (initialData.estimated_unit_price || '') : ''}" placeholder="Cth: 15.000.000" required
                         class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500 text-right item-price font-mono" oninput="formatPriceInput(this)">
                 </td>
                 <td class="px-3 py-2 text-right font-mono font-bold text-slate-900 item-subtotal">
@@ -282,8 +319,12 @@
                 </td>
             `;
             tbody.appendChild(newRow);
-            rowCounter++;
             updateRowIndices();
+            if (initialData) {
+                const priceInput = newRow.querySelector('.item-price');
+                if (priceInput.value) formatPriceInput(priceInput);
+            }
+            return newRow;
         }
 
         function removeItemRow(button) {
@@ -295,11 +336,155 @@
             button.closest('tr').remove();
             updateRowIndices();
             updateGrandTotal();
+            triggerAutoSave();
         }
 
-        // Initialize calculations
+        // --- SESSION HEARTBEAT & CSRF KEEP-ALIVE ---
+        function pingSessionKeepAlive() {
+            fetch("{{ route('session.keepalive') }}", {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'alive' && data.csrf_token) {
+                    // Refresh all CSRF inputs and meta tag
+                    document.querySelectorAll('input[name="_token"]').forEach(input => input.value = data.csrf_token);
+                    const metaCsrf = document.querySelector('meta[name="csrf-token"]');
+                    if (metaCsrf) metaCsrf.setAttribute('content', data.csrf_token);
+
+                    const badge = document.getElementById('sessionStatusBadge');
+                    if (badge) {
+                        badge.textContent = 'Sesi Aktif & Terlindungi (Anti-419)';
+                    }
+                }
+            })
+            .catch(() => {
+                const badge = document.getElementById('sessionStatusBadge');
+                if (badge) {
+                    badge.textContent = 'Menghubungkan kembali...';
+                }
+            });
+        }
+
+        // --- LOCALSTORAGE AUTO-SAVE DRAFT ENGINE ---
+        function triggerAutoSave() {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(saveFormDraft, 600);
+        }
+
+        function saveFormDraft() {
+            const title = document.querySelector('input[name="title"]')?.value || '';
+            const requiredDate = document.querySelector('input[name="required_date"]')?.value || '';
+            const description = document.querySelector('textarea[name="description"]')?.value || '';
+
+            const items = [];
+            document.querySelectorAll('.item-row').forEach(row => {
+                items.push({
+                    item_name: row.querySelector('.item-name')?.value || '',
+                    specification: row.querySelector('.item-spec')?.value || '',
+                    quantity: row.querySelector('.item-qty')?.value || 1,
+                    unit: row.querySelector('.item-unit')?.value || 'Unit',
+                    estimated_unit_price: row.querySelector('.item-price')?.value || '',
+                });
+            });
+
+            // Only save if there's actual content
+            const hasContent = title.trim() || description.trim() || items.some(i => i.item_name.trim());
+            if (!hasContent) return;
+
+            const draftPayload = {
+                timestamp: new Date().toISOString(),
+                title,
+                required_date: requiredDate,
+                description,
+                items
+            };
+
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draftPayload));
+
+            const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const statusEl = document.getElementById('autoSaveStatusText');
+            if (statusEl) {
+                statusEl.textContent = `Draf tersimpan otomatis pk ${timeStr}`;
+            }
+        }
+
+        function checkExistingDraft() {
+            const rawDraft = localStorage.getItem(DRAFT_KEY);
+            if (!rawDraft) return;
+
+            try {
+                const draft = JSON.parse(rawDraft);
+                const currentTitle = document.querySelector('input[name="title"]')?.value || '';
+                // Only show restore prompt if current form is blank
+                if (!currentTitle.trim() && (draft.title || draft.description || (draft.items && draft.items.length))) {
+                    const bar = document.getElementById('draftRecoveryBar');
+                    const ts = document.getElementById('draftTimestampText');
+                    const dateFormatted = new Date(draft.timestamp).toLocaleString('id-ID', {
+                        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    });
+                    if (ts) ts.textContent = `Terakhir disimpan pada: ${dateFormatted} WIB`;
+                    if (bar) bar.classList.remove('hidden');
+                }
+            } catch (e) {
+                localStorage.removeItem(DRAFT_KEY);
+            }
+        }
+
+        function restoreSavedDraft() {
+            const rawDraft = localStorage.getItem(DRAFT_KEY);
+            if (!rawDraft) return;
+
+            try {
+                const draft = JSON.parse(rawDraft);
+                if (draft.title) document.querySelector('input[name="title"]').value = draft.title;
+                if (draft.required_date) document.querySelector('input[name="required_date"]').value = draft.required_date;
+                if (draft.description) document.querySelector('textarea[name="description"]').value = draft.description;
+
+                if (draft.items && draft.items.length) {
+                    const tbody = document.getElementById('itemsBody');
+                    tbody.innerHTML = '';
+                    rowCounter = 0;
+                    draft.items.forEach(item => addItemRow(item));
+                }
+
+                updateGrandTotal();
+                document.getElementById('draftRecoveryBar')?.classList.add('hidden');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function discardSavedDraft() {
+            localStorage.removeItem(DRAFT_KEY);
+            document.getElementById('draftRecoveryBar')?.classList.add('hidden');
+        }
+
+        // Initialize calculations & background listeners
         document.addEventListener('DOMContentLoaded', () => {
             updateGrandTotal();
+            checkExistingDraft();
+
+            // Set up input listeners for auto-save
+            document.querySelectorAll('input[name="title"], input[name="required_date"], textarea[name="description"]').forEach(el => {
+                el.addEventListener('input', triggerAutoSave);
+            });
+
+            // Setup form submit to clear saved draft
+            const form = document.getElementById('prCreateForm');
+            if (form) {
+                form.addEventListener('submit', () => {
+                    localStorage.removeItem(DRAFT_KEY);
+                });
+            }
+
+            // Run session keep-alive ping every 120 seconds (2 mins)
+            setInterval(pingSessionKeepAlive, 120000);
         });
     </script>
 </x-app-layout>

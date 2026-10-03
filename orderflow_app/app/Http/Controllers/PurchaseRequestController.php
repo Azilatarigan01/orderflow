@@ -36,13 +36,23 @@ class PurchaseRequestController extends Controller
 
         $purchaseRequests = $query->paginate(10)->withQueryString();
 
-        // Metrics for summary widgets
+        // Optimized single-pass aggregation for metrics widgets (eliminates 4 redundant queries)
+        $metricsRow = PurchaseRequest::accessibleBy($user)
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
+                SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted,
+                SUM(CASE WHEN status = 'revision_required' THEN 1 ELSE 0 END) as revision_required,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved
+            ")
+            ->first();
+
         $metrics = [
-            'total' => PurchaseRequest::accessibleBy($user)->count(),
-            'draft' => PurchaseRequest::accessibleBy($user)->where('status', 'draft')->count(),
-            'submitted' => PurchaseRequest::accessibleBy($user)->where('status', 'submitted')->count(),
-            'revision_required' => PurchaseRequest::accessibleBy($user)->where('status', 'revision_required')->count(),
-            'approved' => PurchaseRequest::accessibleBy($user)->where('status', 'approved')->count(),
+            'total' => (int) ($metricsRow->total ?? 0),
+            'draft' => (int) ($metricsRow->draft ?? 0),
+            'submitted' => (int) ($metricsRow->submitted ?? 0),
+            'revision_required' => (int) ($metricsRow->revision_required ?? 0),
+            'approved' => (int) ($metricsRow->approved ?? 0),
         ];
 
         return view('purchase_requests.index', compact('purchaseRequests', 'metrics'));
@@ -60,7 +70,7 @@ class PurchaseRequestController extends Controller
         $initialStatus = $isSubmitting ? 'submitted' : 'draft';
 
         $pr = DB::transaction(function () use ($request, $user, $initialStatus, $isSubmitting) {
-            $prNumber = PurchaseRequest::generatePrNumber();
+            $prNumber = PurchaseRequest::generatePrNumber($user->department_id);
 
             $purchaseRequest = PurchaseRequest::create([
                 'pr_number' => $prNumber,
@@ -94,7 +104,8 @@ class PurchaseRequestController extends Controller
             // Handle file upload
             if ($request->hasFile('attachment')) {
                 $file = $request->file('attachment');
-                $filePath = $file->store('pr_attachments', 'public');
+                // Store securely in private local disk for confidentiality
+                $filePath = $file->store('private/pr_attachments', 'local');
 
                 $attachment = Attachment::create([
                     'purchase_request_id' => $purchaseRequest->id,
@@ -182,9 +193,10 @@ class PurchaseRequestController extends Controller
 
         $isSubmitting = $request->input('action') === 'submit';
         $oldStatus = $purchaseRequest->status;
+        $oldEstimatedTotal = (float) $purchaseRequest->estimated_total;
         $newStatus = $isSubmitting ? 'submitted' : $oldStatus;
 
-        DB::transaction(function () use ($request, $purchaseRequest, $user, $oldStatus, $newStatus, $isSubmitting) {
+        DB::transaction(function () use ($request, $purchaseRequest, $user, $oldStatus, $newStatus, $isSubmitting, $oldEstimatedTotal) {
             $purchaseRequest->update([
                 'title' => $request->title,
                 'description' => $request->description,
@@ -214,7 +226,8 @@ class PurchaseRequestController extends Controller
             // Handle new attachment upload if provided
             if ($request->hasFile('attachment')) {
                 $file = $request->file('attachment');
-                $filePath = $file->store('pr_attachments', 'public');
+                // Store securely in private local disk for confidentiality
+                $filePath = $file->store('private/pr_attachments', 'local');
 
                 Attachment::create([
                     'purchase_request_id' => $purchaseRequest->id,
@@ -228,20 +241,21 @@ class PurchaseRequestController extends Controller
                 $purchaseRequest->update(['attachment_path' => $filePath]);
             }
 
-            // Record status history if transitioned or revised
+            // Record status history and route approvals
             if ($isSubmitting && $oldStatus !== 'submitted') {
-                StatusHistory::create([
-                    'purchase_request_id' => $purchaseRequest->id,
-                    'from_status' => $oldStatus,
-                    'to_status' => 'submitted',
-                    'user_id' => $user->id,
-                    'notes' => $oldStatus === 'revision_required'
-                        ? 'Pengajuan telah diperbaiki dan diserahkan kembali untuk persetujuan.'
-                        : 'Draf pengajuan diserahkan untuk persetujuan atasan.',
-                ]);
+                if ($oldStatus === 'revision_required') {
+                    app(ApprovalService::class)->handleResubmission($purchaseRequest, $oldEstimatedTotal, $user);
+                } else {
+                    StatusHistory::create([
+                        'purchase_request_id' => $purchaseRequest->id,
+                        'from_status' => $oldStatus,
+                        'to_status' => 'submitted',
+                        'user_id' => $user->id,
+                        'notes' => 'Draf pengajuan diserahkan untuk persetujuan atasan.',
+                    ]);
 
-                // Generate approval tiers for the newly submitted PR
-                app(ApprovalService::class)->generateApprovalTiers($purchaseRequest);
+                    app(ApprovalService::class)->generateApprovalTiers($purchaseRequest);
+                }
             }
         });
 
@@ -261,22 +275,96 @@ class PurchaseRequestController extends Controller
         }
 
         $oldStatus = $purchaseRequest->status;
+        $oldEstimatedTotal = (float) $purchaseRequest->estimated_total;
+
+        DB::transaction(function () use ($purchaseRequest, $user, $oldStatus, $request, $oldEstimatedTotal) {
+            $purchaseRequest->update(['status' => 'submitted']);
+
+            if ($oldStatus === 'revision_required') {
+                app(ApprovalService::class)->handleResubmission($purchaseRequest, $oldEstimatedTotal, $user);
+            } else {
+                StatusHistory::create([
+                    'purchase_request_id' => $purchaseRequest->id,
+                    'from_status' => $oldStatus,
+                    'to_status' => 'submitted',
+                    'user_id' => $user->id,
+                    'notes' => $request->input('notes', 'Pengajuan diserahkan oleh pemohon untuk peninjauan atasan.'),
+                ]);
+
+                app(ApprovalService::class)->generateApprovalTiers($purchaseRequest);
+            }
+        });
+
+        return redirect()->route('purchase-requests.show', $purchaseRequest)->with('success', "Purchase Request #{$purchaseRequest->pr_number} berhasil diajukan untuk persetujuan.");
+    }
+
+    /**
+     * Poin 4: Tarik Pengajuan ke Draf (Recall / Withdraw)
+     * Pemohon dapat menarik PR yang sedang menunggu approval untuk mengeditnya kembali tanpa harus ditolak manual.
+     */
+    public function withdraw(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        $user = auth()->user();
+
+        if (!$purchaseRequest->canBeWithdrawnBy($user)) {
+            return back()->with('error', 'Pengajuan ini tidak dapat ditarik kembali.');
+        }
+
+        // Check if any approval tier has already been approved
+        $hasApprovedTiers = $purchaseRequest->approvals()->where('status', 'approved')->exists();
+        if ($hasApprovedTiers) {
+            return back()->with('error', 'Pengajuan tidak dapat ditarik karena sudah ada tingkat persetujuan yang menyetujui.');
+        }
+
+        DB::transaction(function () use ($purchaseRequest, $user, $request) {
+            // Dismiss pending approvals
+            $purchaseRequest->approvals()->delete();
+
+            $purchaseRequest->update(['status' => 'draft']);
+
+            StatusHistory::create([
+                'purchase_request_id' => $purchaseRequest->id,
+                'from_status' => 'submitted',
+                'to_status' => 'draft',
+                'user_id' => $user->id,
+                'notes' => $request->input('notes', 'Pengajuan ditarik kembali (recall) ke Draf oleh pemohon untuk perbaikan/revisi mandiri.'),
+            ]);
+        });
+
+        return redirect()->route('purchase-requests.show', $purchaseRequest)
+            ->with('success', "Purchase Request #{$purchaseRequest->pr_number} berhasil ditarik kembali ke status Draf. Anda dapat mengubah data dan mengajukannya ulang.");
+    }
+
+    /**
+     * Poin 4: Batalkan Pengajuan (Cancel PR)
+     */
+    public function cancel(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        $user = auth()->user();
+
+        if (!$purchaseRequest->canBeCancelledBy($user)) {
+            return back()->with('error', 'Pengajuan dengan status saat ini tidak dapat dibatalkan.');
+        }
+
+        $oldStatus = $purchaseRequest->status;
 
         DB::transaction(function () use ($purchaseRequest, $user, $oldStatus, $request) {
-            $purchaseRequest->update(['status' => 'submitted']);
+            // Delete pending approvals
+            $purchaseRequest->approvals()->where('status', 'pending')->delete();
+
+            $purchaseRequest->update(['status' => 'cancelled']);
 
             StatusHistory::create([
                 'purchase_request_id' => $purchaseRequest->id,
                 'from_status' => $oldStatus,
-                'to_status' => 'submitted',
+                'to_status' => 'cancelled',
                 'user_id' => $user->id,
-                'notes' => $request->input('notes', 'Pengajuan diserahkan oleh pemohon untuk peninjauan atasan.'),
+                'notes' => $request->input('cancellation_reason', 'Pengajuan dibatalkan secara mandiri oleh pemohon.'),
             ]);
-
-            app(ApprovalService::class)->generateApprovalTiers($purchaseRequest);
         });
 
-        return redirect()->route('purchase-requests.show', $purchaseRequest)->with('success', "Purchase Request #{$purchaseRequest->pr_number} berhasil diajukan untuk persetujuan.");
+        return redirect()->route('purchase-requests.show', $purchaseRequest)
+            ->with('success', "Purchase Request #{$purchaseRequest->pr_number} berhasil dibatalkan.");
     }
 
     public function destroy(PurchaseRequest $purchaseRequest)
@@ -299,19 +387,65 @@ class PurchaseRequestController extends Controller
 
     private function isUserAuthorizedToView($user, PurchaseRequest $purchaseRequest): bool
     {
+        // Sovereign & oversight roles
         if ($user->hasRole(['admin', 'procurement', 'auditor'])) {
             return true;
         }
 
+        // Creator of the PR can always view it
+        if ($purchaseRequest->user_id === $user->id) {
+            return true;
+        }
+
+        // Finance & Accounting verifies company-wide non-draft PRs (including rejected and revision_required)
         if ($user->hasRole('finance')) {
-            return in_array($purchaseRequest->status, ['submitted', 'approved', 'processing', 'completed']) || $purchaseRequest->user_id === $user->id;
+            return $purchaseRequest->status !== 'draft';
         }
 
+        // HoD (Head of Department / Direksi) can view strategic PRs > 25M or PRs from their own department
+        if ($user->hasRole('hod')) {
+            if ($purchaseRequest->estimated_total > 25000000 && $purchaseRequest->status !== 'draft') {
+                return true;
+            }
+            return $purchaseRequest->department_id === $user->department_id && $purchaseRequest->status !== 'draft';
+        }
+
+        // Department Manager can view non-draft PRs from their department or via active Plt
         if ($user->hasRole('manager')) {
-            return ($user->department_id === $purchaseRequest->department_id && $purchaseRequest->status !== 'draft') || $purchaseRequest->user_id === $user->id;
+            $isDeptManager = ($user->department_id === $purchaseRequest->department_id && $purchaseRequest->status !== 'draft');
+            $hasPlt = $user->getActiveActingDelegationFor('manager', $purchaseRequest->department_id) !== null;
+            return $isDeptManager || $hasPlt;
         }
 
-        // Regular Requester: strictly ONLY their own PR
-        return $purchaseRequest->user_id === $user->id;
+        // Any user who has an active/past approval tier on this PR
+        if ($purchaseRequest->approvals()->where('approver_id', $user->id)->exists()) {
+            return true;
+        }
+
+        // Regular Requester / Warehouse: strictly ONLY their own PR
+        return false;
+    }
+
+    /**
+     * Poin 5: Secure Stream Document for PR Attachments
+     */
+    public function downloadAttachment(PurchaseRequest $purchaseRequest)
+    {
+        $user = auth()->user();
+
+        if (!$this->isUserAuthorizedToView($user, $purchaseRequest)) {
+            abort(403, 'Akses Ditolak: Anda tidak memiliki wewenang untuk mengunduh lampiran pengajuan ini.');
+        }
+
+        if (!$purchaseRequest->attachment_path) {
+            abort(404, 'Lampiran pengajuan tidak ditemukan.');
+        }
+
+        $disk = Storage::disk('local')->exists($purchaseRequest->attachment_path) ? 'local' : 'public';
+        if (!Storage::disk($disk)->exists($purchaseRequest->attachment_path)) {
+            abort(404, 'Berkas fisik lampiran tidak ditemukan di storage server.');
+        }
+
+        return Storage::disk($disk)->response($purchaseRequest->attachment_path);
     }
 }

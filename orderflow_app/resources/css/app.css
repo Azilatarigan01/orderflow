@@ -1,3 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;0,900;1,600&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+}
+
+.font-serif-prestige {
+    font-family: 'Playfair Display', Georgia, serif;
+}
+
+@keyframes float-subtle {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
+}
+
+@keyframes pulse-subtle {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.85;
+        transform: scale(1.02);
+    }
+}
+
+.animate-float {
+    animation: float-subtle 4s ease-in-out infinite;
+}
+
+.animate-pulse-subtle {
+    animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+/* Northfield Prestige Corporate Color Utilities */
+.bg-navy-prestige {
+    background-color: #0A1D37;
+}
+.border-navy-prestige {
+    border-color: #0A1D37;
+}
+.text-navy-prestige {
+    color: #0A1D37;
+}
+
+.bg-gold-prestige {
+    background-color: #C58B24;
+}
+.text-gold-prestige {
+    color: #C58B24;
+}
+.border-gold-prestige {
+    border-color: #C58B24;
+}
+
+/* Soft Neumorphic / Claymorphic Pillowed Cards (Dashboard Style from Image 2) */
+.card-soft {
+    background: #FFFFFF;
+    border-radius: 1.5rem;
+    box-shadow: 0 10px 30px -5px rgba(24, 39, 75, 0.04), 0 2px 8px -1px rgba(24, 39, 75, 0.02);
+    border: 1px solid rgba(241, 245, 249, 0.85);
+}
+
+.card-soft-pill {
+    background: #FFFFFF;
+    border-radius: 1.25rem;
+    box-shadow: 0 8px 24px -4px rgba(24, 39, 75, 0.035), 0 2px 4px -1px rgba(24, 39, 75, 0.02);
+    border: 1px solid rgba(241, 245, 249, 0.9);
+}
+
+.soft-glow-bg {
+    background: radial-gradient(circle at 60% 10%, rgba(254, 226, 226, 0.35) 0%, rgba(243, 244, 246, 0) 50%),
+                radial-gradient(circle at 10% 30%, rgba(253, 230, 138, 0.25) 0%, rgba(243, 244, 246, 0) 40%),
+                #F5F6FA;
+}

@@ -20,22 +20,66 @@ class PurchaseOrder extends Model
         'order_date',
         'delivery_target_date',
         'subtotal',
+        'tax_rate',
+        'tax_calculation_mode',
+        'tax_rounding_tolerance',
         'shipping_fee',
         'tax_amount',
+        'tax_rounding_difference',
         'grand_total',
+        'over_delivery_tolerance_percentage',
         'payment_terms',
         'status',
+        'is_short_closed',
+        'short_closed_at',
+        'short_closed_by',
+        'short_close_reason',
         'notes',
+        'cancellation_reason',
+        'cancelled_at',
+        'default_notice_sent_at',
+        'default_notice_count',
     ];
 
     protected $casts = [
         'order_date' => 'date',
         'delivery_target_date' => 'date',
+        'cancelled_at' => 'datetime',
+        'is_short_closed' => 'boolean',
+        'short_closed_at' => 'datetime',
+        'default_notice_sent_at' => 'datetime',
+        'default_notice_count' => 'integer',
         'subtotal' => 'decimal:2',
+        'tax_rate' => 'decimal:2',
+        'tax_rounding_tolerance' => 'decimal:2',
+        'tax_rounding_difference' => 'decimal:2',
         'shipping_fee' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'grand_total' => 'decimal:2',
+        'over_delivery_tolerance_percentage' => 'decimal:2',
     ];
+
+    public function shortClosedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'short_closed_by');
+    }
+
+    public function getFormattedTaxRateAttribute(): string
+    {
+        return number_format($this->tax_rate ?? 11, 0) . '%';
+    }
+
+    public function getFormattedRoundingDifferenceAttribute(): string
+    {
+        return 'Rp ' . number_format($this->tax_rounding_difference ?? 0, 0, ',', '.');
+    }
+
+    public function getTaxCalculationModeLabelAttribute(): string
+    {
+        return ($this->tax_calculation_mode === 'header_subtotal')
+            ? 'Header Subtotal (Akumulasi Total)'
+            : 'Line Item (Rincian per Baris)';
+    }
 
     public const STATUS_LABELS = [
         'draft' => 'Draf PO',
@@ -83,6 +127,11 @@ class PurchaseOrder extends Model
         return $this->hasMany(GoodsReceipt::class)->orderBy('received_date', 'desc');
     }
 
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class)->latest();
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst($this->status);
@@ -123,8 +172,29 @@ class PurchaseOrder extends Model
         return (int) $this->items->sum('received_quantity');
     }
 
+    public function getIsServiceAttribute(): bool
+    {
+        return $this->goodsReceipts()->where('receipt_type', 'service')->exists()
+            || $this->items()->whereIn('unit', ['Paket', 'Layanan', 'Bulan', 'Proyek', 'Sesi'])->exists();
+    }
+
+    public function getServiceCumulativeProgressPercentageAttribute(): float
+    {
+        return (float) $this->goodsReceipts()
+            ->where('receipt_type', 'service')
+            ->sum('progress_percentage');
+    }
+
     public function getReceiptProgressPercentageAttribute(): int
     {
+        $serviceProgress = (float) $this->goodsReceipts()
+            ->where('receipt_type', 'service')
+            ->sum('progress_percentage');
+
+        if ($serviceProgress > 0) {
+            return min(100, (int) round($serviceProgress));
+        }
+
         $ordered = $this->total_ordered_quantity;
         if ($ordered <= 0) {
             return 0;
@@ -134,48 +204,132 @@ class PurchaseOrder extends Model
     }
 
     /**
-     * Recalculate status based on quantities received
+     * Check if PO is overdue past delivery target date
+     */
+    public function getIsOverdueAttribute(): bool
+    {
+        if (!in_array($this->status, ['issued', 'partially_received'])) {
+            return false;
+        }
+
+        if (!$this->delivery_target_date) {
+            return false;
+        }
+
+        return today()->gt($this->delivery_target_date);
+    }
+
+    /**
+     * Number of overdue calendar days
+     */
+    public function getOverdueDaysAttribute(): int
+    {
+        if (!$this->is_overdue || !$this->delivery_target_date) {
+            return 0;
+        }
+
+        return (int) $this->delivery_target_date->diffInDays(today());
+    }
+
+    /**
+     * Enterprise Liquidated Damages Penalty Percentage
+     * Standard: 1‰ (0.1%) per calendar day of delay, capped at 5.0% maximum.
+     */
+    public function getPenaltyPercentageAttribute(): float
+    {
+        if (!$this->is_overdue) {
+            return 0.0;
+        }
+
+        $calc = round($this->overdue_days * 0.1, 2);
+        return (float) min(5.0, $calc);
+    }
+
+    /**
+     * Estimated penalty amount in Rupiah based on PO Grand Total
+     */
+    public function getEstimatedPenaltyAmountAttribute(): float
+    {
+        if (!$this->is_overdue) {
+            return 0.0;
+        }
+
+        return round(((float) $this->grand_total * $this->penalty_percentage) / 100, 2);
+    }
+
+    /**
+     * Formatted penalty amount in Rupiah
+     */
+    public function getFormattedEstimatedPenaltyAttribute(): string
+    {
+        return 'Rp ' . number_format($this->estimated_penalty_amount, 0, ',', '.');
+    }
+
+    /**
+     * Scope query to only overdue purchase orders
+     */
+    public function scopeOverdue($query)
+    {
+        return $query->whereIn('status', ['issued', 'partially_received'])
+            ->whereNotNull('delivery_target_date')
+            ->where('delivery_target_date', '<', today()->toDateString());
+    }
+
+    /**
+     * Recalculate status based on quantities received or service progress percentage
      */
     public function recalculateStatus(): void
     {
-        $this->load('items');
-        $ordered = $this->items->sum('quantity');
-        $received = $this->items->sum('received_quantity');
+        if ($this->status === 'cancelled' || $this->is_short_closed) {
+            return;
+        }
 
-        if ($received <= 0) {
-            // Keep issued or draft
-            if ($this->status !== 'draft') {
-                $this->update(['status' => 'issued']);
+        $this->load(['items', 'goodsReceipts']);
+        
+        $serviceProgress = (float) $this->goodsReceipts
+            ->where('receipt_type', 'service')
+            ->sum('progress_percentage');
+
+        if ($serviceProgress > 0 || $this->is_service) {
+            if ($serviceProgress <= 0) {
+                if ($this->status !== 'draft') {
+                    $this->update(['status' => 'issued']);
+                }
+            } elseif ($serviceProgress < 100) {
+                $this->update(['status' => 'partially_received']);
+            } else {
+                $this->update(['status' => 'completed']);
+                foreach ($this->items as $item) {
+                    $item->update(['received_quantity' => $item->quantity]);
+                }
             }
-        } elseif ($received < $ordered) {
-            $this->update(['status' => 'partially_received']);
         } else {
-            $this->update(['status' => 'completed']);
+            $ordered = $this->items->sum('quantity');
+            $received = $this->items->sum('received_quantity');
 
-            // When PO is completed, also mark the PR as completed
-            if ($this->purchaseRequest && $this->purchaseRequest->status !== 'completed') {
-                $this->purchaseRequest->update(['status' => 'completed']);
+            if ($received <= 0) {
+                if ($this->status !== 'draft') {
+                    $this->update(['status' => 'issued']);
+                }
+            } elseif ($received < $ordered) {
+                $this->update(['status' => 'partially_received']);
+            } else {
+                $this->update(['status' => 'completed']);
             }
+        }
+
+        // Automatically recalculate and synchronize parent PR status
+        if ($this->purchaseRequest) {
+            $this->purchaseRequest->recalculateStatus();
         }
     }
 
     /**
-     * Generate sequential PO number (PO-YYYYMM-XXXX)
+     * Generate Enterprise sequential PO number with atomic lock
+     * Format: PO/{SCOPE}/{YEAR}/{MONTH}/{XXXX} (e.g. PO/PROC/2026/09/0001)
      */
-    public static function generatePoNumber(): string
+    public static function generatePoNumber(string $scope = 'PROC'): string
     {
-        $prefix = 'PO-' . date('Ym') . '-';
-        $latest = self::where('po_number', 'like', $prefix . '%')
-            ->orderBy('id', 'desc')
-            ->first();
-
-        if ($latest) {
-            $lastNumber = (int) substr($latest->po_number, -4);
-            $nextNumber = str_pad((string) ($lastNumber + 1), 4, '0', STR_PAD_LEFT);
-        } else {
-            $nextNumber = '0001';
-        }
-
-        return $prefix . $nextNumber;
+        return \App\Services\DocumentNumberService::generatePoNumber($scope);
     }
 }

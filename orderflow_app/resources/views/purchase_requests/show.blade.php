@@ -35,6 +35,22 @@
                         </button>
                     </form>
                 @endif
+                @if($purchaseRequest->canBeWithdrawnBy(Auth::user()))
+                    <form method="POST" action="{{ route('purchase-requests.withdraw', $purchaseRequest) }}" onsubmit="return confirm('Tarik kembali pengajuan ini ke status Draf? Anda dapat mengedit item pengadaan dan mengajukannya ulang nanti.')">
+                        @csrf
+                        <button type="submit" class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs">
+                            <span>↩️ Tarik ke Draf (Recall)</span>
+                        </button>
+                    </form>
+                @endif
+                @if($purchaseRequest->canBeCancelledBy(Auth::user()))
+                    <form method="POST" action="{{ route('purchase-requests.cancel', $purchaseRequest) }}" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan Purchase Request ini secara permanen?')">
+                        @csrf
+                        <button type="submit" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs">
+                            <span>🛑 Batalkan PR</span>
+                        </button>
+                    </form>
+                @endif
             </div>
         </div>
     </x-slot>
@@ -69,94 +85,100 @@
 
             <!-- Interactive Approval Action Box (For authorized approvers of active tier) -->
             @if($canApprove && $activeTier)
-                <div x-data="{ modalAction: null, notes: '' }" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-500/30">
-                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div class="space-y-1.5">
+                <div id="approval-action" x-data="{ modalAction: null, notes: '' }" class="bg-white rounded-2xl p-6 border-2 border-indigo-200/90 shadow-sm space-y-4">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div class="space-y-1">
                             <div class="flex items-center gap-2 flex-wrap">
-                                <span class="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1.5">
-                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                                    Tindakan Otorisasi Anda Diperlukan
+                                <span class="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Otorisasi Anda Diperlukan
                                 </span>
-                                <span class="text-xs text-slate-300">
-                                    Tahapan Anda: <strong class="text-white">{{ $activeTier->tier_label }}</strong>
+                                <span class="text-xs text-slate-500 font-medium">
+                                    Tahap: <strong class="text-slate-900 font-bold">{{ $activeTier->tier_label }}</strong>
                                 </span>
                             </div>
-                            <h3 class="text-lg font-extrabold text-white tracking-tight">Keputusan Persetujuan Pengadaan</h3>
-                            <p class="text-xs text-slate-300 max-w-xl leading-relaxed">
-                                Anda berwenang mengambil keputusan pada tahapan ini. Mohon verifikasi rincian barang, harga, dan justifikasi bisnis sebelum memberikan otorisasi.
+                            <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Keputusan Persetujuan Pengadaan</h3>
+                            <p class="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                                Anda berwenang mengambil keputusan pada tahapan ini. Mohon verifikasi rincian barang, harga pagu, dan justifikasi bisnis sebelum memberikan otorisasi.
                             </p>
                         </div>
                         
                         <!-- Action Buttons -->
                         <div class="flex flex-wrap items-center gap-2.5 flex-shrink-0">
                             <!-- Request Revision Button -->
-                            <button type="button" @click="modalAction = 'revision'; notes = ''" class="px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                Minta Revisi
+                            <button type="button" @click="modalAction = 'revision'; notes = ''" class="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+                                <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                <span>Minta Revisi</span>
                             </button>
 
                             <!-- Reject Button -->
-                            <button type="button" @click="modalAction = 'reject'; notes = ''" class="px-4 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                                <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                Tolak PR
+                            <button type="button" @click="modalAction = 'reject'; notes = ''" class="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+                                <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                <span>Tolak PR</span>
                             </button>
 
                             <!-- Approve Button -->
-                            <button type="button" @click="modalAction = 'approve'; notes = ''" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/25 transition flex items-center gap-1.5">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                Setujui (Approve)
+                            <button type="button" @click="modalAction = 'approve'; notes = ''" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Setujui (Approve)</span>
                             </button>
                         </div>
                     </div>
 
-                    <!-- Modal Confirmation & Notes Dialog -->
+                    <!-- Clean Corporate Confirmation Modal -->
                     <div x-show="modalAction !== null"
-                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter="transition ease-out duration-150"
                          x-transition:enter-start="opacity-0"
                          x-transition:enter-end="opacity-100"
-                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave="transition ease-in duration-100"
                          x-transition:leave-start="opacity-100"
                          x-transition:leave-end="opacity-0"
-                         class="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+                         class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
                          style="display: none;">
                         
-                        <div @click.away="modalAction = null" class="bg-white rounded-2xl max-w-lg w-full p-6 text-slate-900 shadow-2xl space-y-4">
+                        <div @click.away="modalAction = null" class="bg-white rounded-2xl max-w-lg w-full p-6 text-slate-900 shadow-xl border border-slate-200 space-y-4">
                             <!-- Approve Modal Header -->
                             <template x-if="modalAction === 'approve'">
-                                <div>
-                                    <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <div class="flex items-start gap-3.5">
+                                    <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                     </div>
-                                    <h3 class="text-base font-bold text-slate-900">Konfirmasi Persetujuan (Approve)</h3>
-                                    <p class="text-xs text-slate-500 mt-1">
-                                        Anda akan menyetujui pengajuan PR <strong>{{ $purchaseRequest->pr_number }}</strong> pada tahapan <strong>{{ $activeTier->tier_label }}</strong>.
-                                    </p>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-900">Konfirmasi Otorisasi Persetujuan</h3>
+                                        <p class="text-xs text-slate-500 mt-0.5">
+                                            Anda akan menyetujui pengajuan PR <strong>{{ $purchaseRequest->pr_number }}</strong> pada tahapan <strong>{{ $activeTier->tier_label }}</strong>.
+                                        </p>
+                                    </div>
                                 </div>
                             </template>
 
                             <!-- Request Revision Modal Header -->
                             <template x-if="modalAction === 'revision'">
-                                <div>
-                                    <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                <div class="flex items-start gap-3.5">
+                                    <div class="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                     </div>
-                                    <h3 class="text-base font-bold text-slate-900">Minta Revisi ke Pemohon</h3>
-                                    <p class="text-xs text-slate-500 mt-1">
-                                        Status PR akan dikembalikan menjadi <strong>Revisi Diperlukan (Revision Required)</strong>. Berikan instruksi perbaikan yang jelas kepada pemohon.
-                                    </p>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-900">Minta Revisi ke Pemohon</h3>
+                                        <p class="text-xs text-slate-500 mt-0.5">
+                                            Status PR akan dikembalikan menjadi <strong>Revisi Diperlukan</strong>. Berikan instruksi perbaikan yang jelas kepada pemohon.
+                                        </p>
+                                    </div>
                                 </div>
                             </template>
 
                             <!-- Reject Modal Header -->
                             <template x-if="modalAction === 'reject'">
-                                <div>
-                                    <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                <div class="flex items-start gap-3.5">
+                                    <div class="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                     </div>
-                                    <h3 class="text-base font-bold text-slate-900">Konfirmasi Penolakan Pengadaan (Reject)</h3>
-                                    <p class="text-xs text-slate-500 mt-1">
-                                        Pengajuan ini akan ditolak secara permanen dan tidak dapat dilanjutkan ke bagian Procurement. Alasan penolakan wajib dicatat dalam jejak audit.
-                                    </p>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-900">Konfirmasi Penolakan Pengadaan</h3>
+                                        <p class="text-xs text-slate-500 mt-0.5">
+                                            Pengajuan ini akan ditolak secara permanen dan dicatat dalam jejak audit resmi.
+                                        </p>
+                                    </div>
                                 </div>
                             </template>
 
@@ -166,7 +188,7 @@
                                     : (modalAction === 'revision'
                                         ? '{{ route('approvals.revision', $purchaseRequest) }}'
                                         : '{{ route('approvals.reject', $purchaseRequest) }}')"
-                                  method="POST" class="space-y-4">
+                                  method="POST" class="space-y-4 pt-2">
                                 @csrf
 
                                 <div>
@@ -179,30 +201,30 @@
                                         :placeholder="modalAction === 'approve'
                                             ? 'Tambahkan catatan jika diperlukan (opsional)...'
                                             : (modalAction === 'revision'
-                                                ? 'Contoh: Mohon kurangi jumlah item atau lampirkan perbandingan 3 penawaran vendor...'
-                                                : 'Contoh: Anggaran divisi tidak mencukupi untuk kuartal ini...')"
-                                        class="w-full text-xs rounded-xl border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-xs"></textarea>
+                                                ? 'Contoh: Mohon perbaiki rincian spesifikasi atau lampirkan dokumen pendukung...'
+                                                : 'Contoh: Anggaran divisi tidak mencukupi untuk periode ini...')"
+                                        class="w-full text-xs rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-2xs"></textarea>
                                 </div>
 
-                                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                                    <button type="button" @click="modalAction = null" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 transition">
+                                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                                    <button type="button" @click="modalAction = null" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
                                         Batal
                                     </button>
                                     
                                     <template x-if="modalAction === 'approve'">
-                                        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                                        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition">
                                             Ya, Setujui Pengajuan
                                         </button>
                                     </template>
 
                                     <template x-if="modalAction === 'revision'">
-                                        <button type="submit" :disabled="notes.trim().length < 5" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                                        <button type="submit" :disabled="notes.trim().length < 5" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition">
                                             Kirim Permintaan Revisi
                                         </button>
                                     </template>
 
                                     <template x-if="modalAction === 'reject'">
-                                        <button type="submit" :disabled="notes.trim().length < 5" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                                        <button type="submit" :disabled="notes.trim().length < 5" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition">
                                             Tolak Pengadaan
                                         </button>
                                     </template>
@@ -285,19 +307,26 @@
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0 flex-wrap">
                         @php
-                            $activePo = $purchaseRequest->purchaseOrder();
+                            $allPos = $purchaseRequest->purchaseOrders()->with('vendor')->get();
+                            $unissuedQuotes = $purchaseRequest->unissuedQuotations();
                         @endphp
-                        @if($activePo)
-                            <a href="{{ route('purchase-orders.show', $activePo) }}" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30 transition flex items-center gap-1.5">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                <span>Lihat PO ({{ $activePo->po_number }})</span>
-                            </a>
-                        @elseif($selectedVendorQ && Auth::user()->hasRole(['procurement', 'admin']))
-                            <a href="{{ route('purchase-orders.create', ['purchase_request_id' => $purchaseRequest->id]) }}" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30 transition flex items-center gap-1.5">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                <span>Terbitkan PO Resmi</span>
+                        @if($allPos->count() > 0)
+                            @foreach($allPos as $pOrder)
+                                <a href="{{ route('purchase-orders.show', $pOrder) }}" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30 transition flex items-center gap-1.5 font-mono">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    <span>{{ $pOrder->po_number }}</span>
+                                    <span class="text-[10px] font-sans font-normal opacity-90">({{ $pOrder->vendor?->name }})</span>
+                                </a>
+                            @endforeach
+                        @endif
+
+                        @if($unissuedQuotes->count() > 0 && Auth::user()->hasRole(['procurement', 'admin']))
+                            <a href="{{ route('purchase-orders.create', ['purchase_request_id' => $purchaseRequest->id]) }}" class="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30 transition flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                <span>Terbitkan PO {{ $allPos->count() > 0 ? 'Tambahan (Split PO)' : 'Resmi' }}</span>
                             </a>
                         @endif
+
                         <a href="{{ route('quotations.compare', $purchaseRequest) }}" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/30 transition flex items-center gap-1.5">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                             <span>Buka Matriks RFQ</span>
@@ -522,8 +551,8 @@
                                         <p class="text-[10px] text-slate-400">{{ $att->formatted_size }} &bull; Diunggah oleh {{ $att->uploader?->name ?? 'Pengguna' }}</p>
                                     </div>
                                 </div>
-                                <a href="{{ asset('storage/' . $att->file_path) }}" target="_blank" class="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-md flex-shrink-0 ml-2">
-                                    Buka File
+                                <a href="{{ route('purchase-requests.attachment', $purchaseRequest) }}" target="_blank" class="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-md flex-shrink-0 ml-2 flex items-center gap-1">
+                                    <span>🔒 Unduh Aman</span>
                                 </a>
                             </div>
                         @endforeach

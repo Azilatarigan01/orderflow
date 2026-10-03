@@ -24,6 +24,8 @@ class Quotation extends Model
         'warranty_months',
         'warranty_info',
         'valid_until',
+        'submission_status',
+        'late_dispensation_reason',
         'file_path',
         'notes',
         'score',
@@ -31,6 +33,9 @@ class Quotation extends Model
         'selection_reason',
         'is_single_source',
         'single_source_reason',
+        'single_source_category',
+        'single_source_memo_number',
+        'single_source_approver_name',
         'created_by',
     ];
 
@@ -46,6 +51,36 @@ class Quotation extends Model
         'is_selected' => 'boolean',
         'is_single_source' => 'boolean',
     ];
+
+    protected static function booted()
+    {
+        static::deleting(function ($quotation) {
+            if ($quotation->file_path) {
+                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($quotation->file_path)) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($quotation->file_path);
+                }
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($quotation->file_path)) {
+                    \Illuminate\Support\Facades\Storage::disk('local')->delete($quotation->file_path);
+                }
+            }
+        });
+    }
+
+    public function getIsLateSubmissionAttribute(): bool
+    {
+        return $this->submission_status === 'late_with_dispensation';
+    }
+
+    public function getSingleSourceCategoryLabelAttribute(): ?string
+    {
+        return match ($this->single_source_category) {
+            'emergency' => 'Keadaan Darurat / Bencana Operasional',
+            'sole_distributor' => 'Pemegang Hak Paten / Distributor Tunggal Resmi',
+            'standardization' => 'Standarisasi Perangkat Eksisting / Lisensi Khusus',
+            'urgent_operational' => 'Kebutuhan Mendesak Terikat Kontrak Proyek',
+            default => $this->single_source_category ? ucfirst($this->single_source_category) : null,
+        };
+    }
 
     public function purchaseRequest(): BelongsTo
     {

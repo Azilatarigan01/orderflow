@@ -16,6 +16,10 @@ class GoodsReceipt extends Model
         'purchase_order_id',
         'received_by',
         'receipt_type',
+        'termin_name',
+        'progress_percentage',
+        'cumulative_progress_percentage',
+        'nominal_claimed',
         'received_date',
         'delivery_note_no',
         'delivery_note_doc',
@@ -33,7 +37,22 @@ class GoodsReceipt extends Model
         'received_date' => 'date',
         'service_period_start' => 'date',
         'service_period_end' => 'date',
+        'progress_percentage' => 'decimal:2',
+        'cumulative_progress_percentage' => 'decimal:2',
+        'nominal_claimed' => 'decimal:2',
     ];
+
+    protected static function booted()
+    {
+        static::deleting(function ($gr) {
+            if ($gr->delivery_note_doc && \Illuminate\Support\Facades\Storage::disk('public')->exists($gr->delivery_note_doc)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($gr->delivery_note_doc);
+            }
+            if ($gr->bast_document_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($gr->bast_document_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($gr->bast_document_path);
+            }
+        });
+    }
 
     public const STATUS_LABELS = [
         'partially_received' => 'Penerimaan Sebagian',
@@ -77,24 +96,26 @@ class GoodsReceipt extends Model
         return $this->receipt_type === 'service';
     }
 
-    /**
-     * Generate sequential GR number (GR-YYYYMM-XXXX or BAST-YYYYMM-XXXX)
-     */
-    public static function generateGrNumber(string $type = 'goods'): string
+    public function getFormattedNominalClaimedAttribute(): string
     {
-        $tag = ($type === 'service') ? 'BAST' : 'GR';
-        $prefix = $tag . '-' . date('Ym') . '-';
-        $latest = self::where('gr_number', 'like', $prefix . '%')
-            ->orderBy('id', 'desc')
-            ->first();
+        return 'Rp ' . number_format($this->nominal_claimed, 0, ',', '.');
+    }
 
-        if ($latest) {
-            $lastNumber = (int) substr($latest->gr_number, -4);
-            $nextNumber = str_pad((string) ($lastNumber + 1), 4, '0', STR_PAD_LEFT);
-        } else {
-            $nextNumber = '0001';
-        }
+    public function getFormattedProgressPercentageAttribute(): string
+    {
+        return number_format($this->progress_percentage, 1, ',', '.') . '%';
+    }
 
-        return $prefix . $nextNumber;
+    public function getFormattedCumulativeProgressAttribute(): string
+    {
+        return number_format($this->cumulative_progress_percentage, 1, ',', '.') . '%';
+    }
+
+    /**
+     * Generate Enterprise sequential GR number (GR/{SCOPE}/{YEAR}/{MONTH}/{XXXX} or BAST/{SCOPE}/...)
+     */
+    public static function generateGrNumber(string $type = 'goods', string $scope = 'WH'): string
+    {
+        return \App\Services\DocumentNumberService::generateGrNumber($type, $scope);
     }
 }

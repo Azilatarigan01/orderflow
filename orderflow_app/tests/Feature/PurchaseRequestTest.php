@@ -191,4 +191,52 @@ class PurchaseRequestTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    /**
+     * Test Poin 4: Requester can recall/withdraw a submitted PR back to draft
+     */
+    public function test_requester_can_withdraw_submitted_pr_to_draft(): void
+    {
+        $requester = User::where('role', 'requester')->first();
+
+        $submittedPr = PurchaseRequest::where('user_id', $requester->id)
+            ->where('status', 'submitted')
+            ->first();
+
+        $this->assertNotNull($submittedPr);
+
+        // Requester withdraws their own PR
+        $response = $this->actingAs($requester)->post(route('purchase-requests.withdraw', $submittedPr), [
+            'notes' => 'Ada perubahan jumlah laptop yang dibutuhkan.',
+        ]);
+
+        $response->assertRedirect(route('purchase-requests.show', $submittedPr));
+        $this->assertEquals('draft', $submittedPr->fresh()->status);
+        $this->assertEquals(0, $submittedPr->approvals()->where('status', 'pending')->count());
+
+        // Now requester CAN edit the PR
+        $editResponse = $this->actingAs($requester)->get(route('purchase-requests.edit', $submittedPr));
+        $editResponse->assertStatus(200);
+    }
+
+    /**
+     * Test Poin 4: Requester can cancel a PR
+     */
+    public function test_requester_can_cancel_pr(): void
+    {
+        $requester = User::where('role', 'requester')->first();
+
+        $submittedPr = PurchaseRequest::where('user_id', $requester->id)
+            ->where('status', 'submitted')
+            ->first();
+
+        $this->assertNotNull($submittedPr);
+
+        $response = $this->actingAs($requester)->post(route('purchase-requests.cancel', $submittedPr), [
+            'cancellation_reason' => 'Proyek ditunda hingga kuartal depan.',
+        ]);
+
+        $response->assertRedirect(route('purchase-requests.show', $submittedPr));
+        $this->assertEquals('cancelled', $submittedPr->fresh()->status);
+    }
 }

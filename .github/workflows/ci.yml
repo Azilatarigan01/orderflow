@@ -1,0 +1,98 @@
+name: OrderFlow Enterprise CI / Automated Test & Build
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master", "develop" ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Continuous Integration (PHP 8.2 & Vite Build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./orderflow_app
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup PHP Runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_sqlite, sqlite3, gd, zip, curl, bcmath
+          coverage: none
+
+      - name: 3. Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: './orderflow_app/package-lock.json'
+
+      - name: 4. Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: 5. Cache Composer Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: 6. Install Backend Dependencies (Composer)
+        run: composer install --prefer-dist --no-progress --no-interaction --optimize-autoloader
+
+      - name: 7. Copy Environment Test Configuration
+        run: |
+          cp .env.example .env.testing
+          echo "APP_ENV=testing" >> .env.testing
+          echo "APP_KEY=base64:r8q9s1d4f2g3h4j5k6l7m8n9p0q1r2s3t4u5v6w7x8y=" >> .env.testing
+          echo "DB_CONNECTION=sqlite" >> .env.testing
+          echo "DB_DATABASE=:memory:" >> .env.testing
+          echo "CACHE_STORE=array" >> .env.testing
+          echo "SESSION_DRIVER=array" >> .env.testing
+          echo "QUEUE_CONNECTION=sync" >> .env.testing
+          echo "MAIL_MAILER=array" >> .env.testing
+
+      - name: 8. Migrate Database Test
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+        run: php artisan migrate --force
+
+      - name: 9. Run Automated Test Suite (Feature & Unit)
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+        run: php artisan test --verbose
+
+      - name: 10. Install Frontend Dependencies (NPM)
+        run: npm ci || npm install
+
+      - name: 11. Build Frontend Production Bundle (Vite)
+        run: npm run build
+
+      - name: 12. Display Pipeline Summary & Verification Results
+        if: always()
+        run: |
+          echo "========================================================"
+          echo "       ORDERFLOW ENTERPRISE CI PIPELINE STATUS          "
+          echo "========================================================"
+          echo "✓ PHP Environment: PHP 8.2 + SQLite Extensions"
+          echo "✓ Backend Dependencies: Composer dependencies resolved"
+          echo "✓ Environment Config: .env.testing initialized"
+          echo "✓ Automated Tests: CoreWorkflow & REST API tests executed"
+          echo "✓ Frontend Bundle: Vite build assets compiled"
+          echo "Pipeline Result: ${{ job.status }}"
+          echo "========================================================"

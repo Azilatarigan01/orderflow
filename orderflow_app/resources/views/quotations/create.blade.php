@@ -47,7 +47,70 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('quotations.store', $purchaseRequest) }}" enctype="multipart/form-data" class="space-y-6">
+            <!-- RFQ Deadline Alert & Late Dispensation Form -->
+            @if($purchaseRequest->rfq_deadline)
+                @if($isRfqExpired)
+                    <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5 space-y-3">
+                        <div class="flex items-start gap-2.5">
+                            <span class="text-xl">⏳</span>
+                            <div>
+                                <h4 class="font-bold text-amber-950 text-xs">Peringatan: Batas Waktu RFQ Telah Berakhir</h4>
+                                <p class="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                                    Tenggat waktu resmi pengumpulan penawaran untuk PR ini telah ditutup pada <strong>{{ $purchaseRequest->formatted_rfq_deadline }}</strong>. 
+                                    Sesuai regulasi korporat, penerimaan penawaran melewati tenggat waktu wajib disertai dispensasi dan alasan tertulis yang dapat dipertanggungjawabkan saat audit.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="pt-2 border-t border-amber-200/80 space-y-2">
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" name="allow_late_submission" value="1" {{ old('allow_late_submission') ? 'checked' : '' }}
+                                    class="w-4 h-4 rounded text-amber-600 border-amber-400 focus:ring-amber-500 mt-0.5">
+                                <span class="text-xs font-extrabold text-amber-950">
+                                    Izinkan Penerimaan Penawaran dengan Status "Dispensasi Keterlambatan"
+                                </span>
+                            </label>
+
+                            <div>
+                                <label class="block text-[11px] font-bold text-amber-900 uppercase tracking-wider mb-1">
+                                    Alasan Justifikasi Dispensasi Procurement: <span class="text-rose-600">*</span>
+                                </label>
+                                <textarea name="late_dispensation_reason" rows="2" placeholder="Jelaskan alasan mengapa penawaran vendor yang terlambat ini tetap dipertimbangkan (misal: keterbatasan alternatif vendor, penawaran harga sangat kompetitif, dll - min 10 karakter)..."
+                                    class="w-full text-xs rounded-xl border border-amber-300 focus:border-amber-500 focus:ring-amber-500 bg-white p-2.5">{{ old('late_dispensation_reason') }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <div class="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">📅</span>
+                            <span class="text-indigo-900">Batas Waktu Pengumpulan RFQ: <strong class="font-mono font-bold">{{ $purchaseRequest->formatted_rfq_deadline }}</strong></span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            🟢 Masa Pengajuan Aktif
+                        </span>
+                    </div>
+                @endif
+            <!-- Draft Recovery Notification Bar -->
+            <div id="draftRecoveryBar" class="hidden p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-xl">💾</span>
+                    <div>
+                        <p class="font-bold text-xs">Ditemukan Draf Penawaran Vendor yang Tersimpan Otomatis</p>
+                        <p class="text-[11px] text-amber-800" id="draftTimestampText">Terakhir disimpan pada: -</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="restoreSavedDraft()" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs transition">
+                        Pulihkan Draf
+                    </button>
+                    <button type="button" onclick="discardSavedDraft()" class="px-3.5 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-medium transition">
+                        Abaikan & Hapus
+                    </button>
+                </div>
+            </div>
+
+            <form id="quotationCreateForm" method="POST" action="{{ route('quotations.store', $purchaseRequest) }}" enctype="multipart/form-data" class="space-y-6">
                 @csrf
 
                 <!-- Section 1: Profil Rekanan Vendor & Identitas Surat -->
@@ -237,24 +300,38 @@
                     </div>
                 </div>
 
-                <!-- Submit Button -->
-                <div class="flex items-center justify-end gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
-                    <a href="{{ route('quotations.compare', $purchaseRequest) }}" class="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition">
-                        Batal
-                    </a>
-                    <button type="submit"
-                        class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        <span>Simpan Penawaran Vendor</span>
-                    </button>
+                <!-- Submit Button & Status Indicator -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span id="sessionStatusBadge">Sesi Aktif & Terlindungi (Anti-419)</span>
+                        </span>
+                        <span id="autoSaveStatusText" class="text-[11px] text-slate-400">
+                            Auto-save draf aktif
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <a href="{{ route('quotations.compare', $purchaseRequest) }}" class="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-xs transition">
+                            Batal
+                        </a>
+                        <button type="submit"
+                            class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            <span>Simpan Penawaran Vendor</span>
+                        </button>
+                    </div>
                 </div>
             </form>
 
         </div>
     </div>
 
-    <!-- Script for Dynamic Subtotal & Grand Total -->
+    <!-- Script for Dynamic Subtotal, Grand Total, Auto-Save & Session Keep-Alive -->
     <script>
+        const DRAFT_KEY = 'orderflow_quotation_draft_{{ $purchaseRequest->id }}_{{ Auth::id() }}';
+        let autoSaveTimer = null;
+
         function formatRupiah(number) {
             return 'Rp ' + new Intl.NumberFormat('id-ID').format(number);
         }
@@ -280,6 +357,7 @@
 
             row.querySelector('.item-subtotal').textContent = formatRupiah(subtotal);
             updateGrandTotal();
+            triggerAutoSave();
         }
 
         function updateGrandTotal() {
@@ -303,8 +381,169 @@
             document.getElementById('grandTotalDisplay').textContent = formatRupiah(grandTotal);
         }
 
+        // --- SESSION HEARTBEAT & CSRF KEEP-ALIVE ---
+        function pingSessionKeepAlive() {
+            fetch("{{ route('session.keepalive') }}", {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'alive' && data.csrf_token) {
+                    document.querySelectorAll('input[name="_token"]').forEach(input => input.value = data.csrf_token);
+                    const metaCsrf = document.querySelector('meta[name="csrf-token"]');
+                    if (metaCsrf) metaCsrf.setAttribute('content', data.csrf_token);
+
+                    const badge = document.getElementById('sessionStatusBadge');
+                    if (badge) badge.textContent = 'Sesi Aktif & Terlindungi (Anti-419)';
+                }
+            })
+            .catch(() => {
+                const badge = document.getElementById('sessionStatusBadge');
+                if (badge) badge.textContent = 'Menghubungkan kembali...';
+            });
+        }
+
+        // --- LOCALSTORAGE AUTO-SAVE DRAFT ENGINE ---
+        function triggerAutoSave() {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(saveFormDraft, 600);
+        }
+
+        function saveFormDraft() {
+            const vendorId = document.querySelector('select[name="vendor_id"]')?.value || '';
+            const quotationNumber = document.querySelector('input[name="quotation_number"]')?.value || '';
+            const validUntil = document.querySelector('input[name="valid_until"]')?.value || '';
+            const estimatedDelivery = document.querySelector('input[name="estimated_delivery_days"]')?.value || '';
+            const warrantyMonths = document.querySelector('input[name="warranty_months"]')?.value || '';
+            const warrantyInfo = document.querySelector('input[name="warranty_info"]')?.value || '';
+            const shippingCost = document.getElementById('shippingCostInput')?.value || '';
+            const taxAmount = document.getElementById('taxAmountInput')?.value || '';
+            const notes = document.querySelector('textarea[name="notes"]')?.value || '';
+
+            const itemPrices = {};
+            document.querySelectorAll('.item-row').forEach(row => {
+                const prItemId = row.dataset.prItemId || row.querySelector('input[type="hidden"]')?.value;
+                const price = row.querySelector('.item-price')?.value || '';
+                if (prItemId) {
+                    itemPrices[prItemId] = price;
+                }
+            });
+
+            if (!vendorId && !quotationNumber && Object.keys(itemPrices).length === 0) return;
+
+            const draft = {
+                timestamp: new Date().toISOString(),
+                vendor_id: vendorId,
+                quotation_number: quotationNumber,
+                valid_until: validUntil,
+                estimated_delivery_days: estimatedDelivery,
+                warranty_months: warrantyMonths,
+                warranty_info: warrantyInfo,
+                shipping_cost: shippingCost,
+                tax_amount: taxAmount,
+                notes: notes,
+                item_prices: itemPrices,
+            };
+
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+
+            const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const statusEl = document.getElementById('autoSaveStatusText');
+            if (statusEl) {
+                statusEl.textContent = `Draf tersimpan otomatis pk ${timeStr}`;
+            }
+        }
+
+        function checkExistingDraft() {
+            const rawDraft = localStorage.getItem(DRAFT_KEY);
+            if (!rawDraft) return;
+
+            try {
+                const draft = JSON.parse(rawDraft);
+                const currentVendor = document.querySelector('select[name="vendor_id"]')?.value;
+                if (!currentVendor && (draft.vendor_id || draft.quotation_number || draft.shipping_cost)) {
+                    const bar = document.getElementById('draftRecoveryBar');
+                    const ts = document.getElementById('draftTimestampText');
+                    const dateFormatted = new Date(draft.timestamp).toLocaleString('id-ID', {
+                        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    });
+                    if (ts) ts.textContent = `Terakhir disimpan pada: ${dateFormatted} WIB`;
+                    if (bar) bar.classList.remove('hidden');
+                }
+            } catch (e) {
+                localStorage.removeItem(DRAFT_KEY);
+            }
+        }
+
+        function restoreSavedDraft() {
+            const rawDraft = localStorage.getItem(DRAFT_KEY);
+            if (!rawDraft) return;
+
+            try {
+                const draft = JSON.parse(rawDraft);
+                if (draft.vendor_id) document.querySelector('select[name="vendor_id"]').value = draft.vendor_id;
+                if (draft.quotation_number) document.querySelector('input[name="quotation_number"]').value = draft.quotation_number;
+                if (draft.valid_until) document.querySelector('input[name="valid_until"]').value = draft.valid_until;
+                if (draft.estimated_delivery_days) document.querySelector('input[name="estimated_delivery_days"]').value = draft.estimated_delivery_days;
+                if (draft.warranty_months) document.querySelector('input[name="warranty_months"]').value = draft.warranty_months;
+                if (draft.warranty_info) document.querySelector('input[name="warranty_info"]').value = draft.warranty_info;
+                if (draft.shipping_cost) {
+                    const shipEl = document.getElementById('shippingCostInput');
+                    shipEl.value = draft.shipping_cost;
+                    formatFeeInput(shipEl);
+                }
+                if (draft.tax_amount) {
+                    const taxEl = document.getElementById('taxAmountInput');
+                    taxEl.value = draft.tax_amount;
+                    formatFeeInput(taxEl);
+                }
+                if (draft.notes) document.querySelector('textarea[name="notes"]').value = draft.notes;
+
+                if (draft.item_prices) {
+                    document.querySelectorAll('.item-row').forEach(row => {
+                        const prItemId = row.dataset.prItemId || row.querySelector('input[type="hidden"]')?.value;
+                        if (prItemId && draft.item_prices[prItemId]) {
+                            const priceInput = row.querySelector('.item-price');
+                            priceInput.value = draft.item_prices[prItemId];
+                            formatPriceInput(priceInput);
+                        }
+                    });
+                }
+
+                updateGrandTotal();
+                document.getElementById('draftRecoveryBar')?.classList.add('hidden');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function discardSavedDraft() {
+            localStorage.removeItem(DRAFT_KEY);
+            document.getElementById('draftRecoveryBar')?.classList.add('hidden');
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             updateGrandTotal();
+            checkExistingDraft();
+
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                el.addEventListener('input', triggerAutoSave);
+                el.addEventListener('change', triggerAutoSave);
+            });
+
+            const form = document.getElementById('quotationCreateForm');
+            if (form) {
+                form.addEventListener('submit', () => {
+                    localStorage.removeItem(DRAFT_KEY);
+                });
+            }
+
+            setInterval(pingSessionKeepAlive, 120000);
         });
     </script>
 </x-app-layout>
