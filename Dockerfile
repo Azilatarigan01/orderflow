@@ -1,10 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM php:8.2-fpm
 
-# Arguments defined in docker-compose.yml
-ARG user=www-data
-ARG uid=1000
-
 # Install system dependencies & libraries required for PHP extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
@@ -45,14 +41,14 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 # Copy custom PHP configuration
-COPY docker/php/local.ini /usr/local/etc/php/conf.d/local.ini
+COPY orderflow_app/docker/php/local.ini /usr/local/etc/php/conf.d/local.ini
 
 # Copy entrypoint script and make it executable
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY orderflow_app/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copy application source code
-COPY . /var/www/html
+# Copy application source code from orderflow_app
+COPY orderflow_app /var/www/html
 
 # Install Composer dependencies and build frontend assets
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader \
@@ -67,7 +63,7 @@ RUN chown -R www-data:www-data /var/www/html \
 # Switch to entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-# Expose web port (Render uses dynamic $PORT, local uses 8000/9000)
+# Expose web port
 EXPOSE 8000 9000 10000
 
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
