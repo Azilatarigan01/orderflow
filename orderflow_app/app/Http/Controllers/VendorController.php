@@ -123,8 +123,21 @@ class VendorController extends Controller
      */
     public function destroy(Vendor $vendor)
     {
+        // Integrity safeguard: check active transactions
+        $activePoCount = $vendor->purchaseOrders()->whereNotIn('status', ['completed', 'cancelled'])->count();
+        $activeQuotationsCount = $vendor->quotations()
+            ->whereHas('purchaseRequest', fn ($q) => $q->whereIn('status', ['approved', 'processing']))
+            ->count();
+
+        if ($activePoCount > 0 || $activeQuotationsCount > 0) {
+            $totalActive = $activePoCount + $activeQuotationsCount;
+
+            return back()->with('error', "Vendor {$vendor->name} tidak dapat dihapus karena masih terikat dengan {$totalActive} transaksi aktif ({$activePoCount} PO berjalan, {$activeQuotationsCount} proses tender aktif). Silakan ubah status menjadi Nonaktif jika rekanan tidak digunakan lagi.");
+        }
+
+        $vendorName = $vendor->name;
         $vendor->delete();
 
-        return redirect()->route('vendors.index')->with('success', "Vendor {$vendor->name} berhasil dihapus.");
+        return redirect()->route('vendors.index')->with('success', "Vendor {$vendorName} berhasil dihapus secara aman (Soft Delete).");
     }
 }

@@ -298,6 +298,9 @@ class QuotationTest extends TestCase
             'quotation_id' => $q1->id,
             'selection_reason' => 'Dipilih karena satu-satunya distributor resmi berlisensi.',
             'is_single_source' => true,
+            'single_source_category' => 'sole_distributor',
+            'single_source_memo_number' => 'ND-DIR/09/2026/044',
+            'single_source_approver_name' => 'Ir. Hendrawan (Direktur IT)',
             'single_source_reason' => 'Perangkat ini memiliki lisensi eksklusif OEM dan tidak dijual oleh vendor lain.',
         ]);
 
@@ -305,6 +308,141 @@ class QuotationTest extends TestCase
         $this->assertEquals('processing', $pr->fresh()->status);
         $this->assertTrue((bool) $q1->fresh()->is_selected);
         $this->assertTrue((bool) $q1->fresh()->is_single_source);
+        $this->assertEquals('sole_distributor', $q1->fresh()->single_source_category);
+        $this->assertEquals('ND-DIR/09/2026/044', $q1->fresh()->single_source_memo_number);
+    }
+
+    public function test_single_source_award_fails_without_complete_governance_fields(): void
+    {
+        $pr = $this->createApprovedPr(25000000);
+
+        $q1 = Quotation::create([
+            'purchase_request_id' => $pr->id,
+            'vendor_id' => $this->activeVendor1->id,
+            'subtotal' => 24000000,
+            'grand_total' => 24000000,
+            'estimated_delivery_days' => 3,
+        ]);
+
+        // Missing memo number, approver name, and category
+        $response = $this->actingAs($this->procurement)->post(route('quotations.select', $pr), [
+            'quotation_id' => $q1->id,
+            'selection_reason' => 'Single source urgent purchase',
+            'is_single_source' => true,
+            'single_source_reason' => 'Emergency disaster recovery server replacement',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'single_source_category',
+            'single_source_memo_number',
+            'single_source_approver_name',
+        ]);
+        $this->assertEquals('approved', $pr->fresh()->status);
+        $this->assertFalse((bool) $q1->fresh()->is_selected);
+    }
+
+    public function test_rfq_deadline_can_be_set_and_updated_by_procurement(): void
+    {
+        $pr = $this->createApprovedPr(8000000);
+        $deadline = Carbon::now()->addDays(5)->startOfMinute();
+
+        $response = $this->actingAs($this->procurement)->patch(route('quotations.rfq-deadline', $pr), [
+            'rfq_deadline' => $deadline->format('Y-m-d H:i:s'),
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+        $this->assertNotNull($pr->fresh()->rfq_deadline);
+        $this->assertFalse($pr->fresh()->is_rfq_closed);
+    }
+
+    public function test_quotation_submitted_past_rfq_deadline_requires_late_dispensation(): void
+    {
+        $pr = $this->createApprovedPr(8000000);
+        // Set deadline to 2 days ago
+        $pr->update(['rfq_deadline' => Carbon::now()->subDays(2)]);
+        $this->assertTrue($pr->is_rfq_closed);
+
+        // Try to submit quotation without dispensation
+        $response = $this->actingAs($this->procurement)->post(route('quotations.store', $pr), [
+            'vendor_id' => $this->activeVendor1->id,
+            'quotation_number' => 'QTO-LATE-01',
+            'estimated_delivery_days' => 3,
+            'warranty_months' => 12,
+            'items' => [
+                [
+                    'item_name' => 'Server RAM 32GB',
+                    'quantity' => 2,
+                    'unit' => 'Unit',
+                    'unit_price' => 3500000,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['rfq_deadline']);
+        $this->assertDatabaseMissing('quotations', ['quotation_number' => 'QTO-LATE-01']);
+    }
+
+    public function test_quotation_submitted_past_rfq_deadline_with_dispensation_is_recorded(): void
+    {
+        $pr = $this->createApprovedPr(8000000);
+        $pr->update(['rfq_deadline' => Carbon::now()->subDays(2)]);
+
+        $response = $this->actingAs($this->procurement)->post(route('quotations.store', $pr), [
+            'vendor_id' => $this->activeVendor1->id,
+            'quotation_number' => 'QTO-DISP-01',
+            'estimated_delivery_days' => 3,
+            'warranty_months' => 12,
+            'allow_late_submission' => 1,
+            'late_dispensation_reason' => 'Vendor terlambat mengirim karena masalah email server namun menawarkan diskon 15%',
+            'items' => [
+                [
+                    'item_name' => 'Server RAM 32GB',
+                    'quantity' => 2,
+                    'unit' => 'Unit',
+                    'unit_price' => 3500000,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $q = Quotation::where('quotation_number', 'QTO-DISP-01')->first();
+        $this->assertNotNull($q);
+        $this->assertEquals('late_with_dispensation', $q->submission_status);
+        $this->assertTrue($q->is_late_submission);
+        $this->assertStringContainsString('Vendor terlambat', $q->late_dispensation_reason);
+    }
+
+    public function test_scoring_engine_tie_breaker_hierarchy(): void
+    {
+        $pr = $this->createApprovedPr(10000000);
+
+        // Vendor 1: Price 5M, 2 days delivery, 12 mo warranty, rating 4.8
+        $q1 = Quotation::create([
+            'purchase_request_id' => $pr->id,
+            'vendor_id' => $this->activeVendor1->id,
+            'subtotal' => 5000000,
+            'grand_total' => 5000000,
+            'estimated_delivery_days' => 2,
+            'warranty_months' => 12,
+        ]);
+
+        // Vendor 2: Price 6M (higher), but identical delivery & warranty
+        $q2 = Quotation::create([
+            'purchase_request_id' => $pr->id,
+            'vendor_id' => $this->activeVendor2->id,
+            'subtotal' => 6000000,
+            'grand_total' => 6000000,
+            'estimated_delivery_days' => 2,
+            'warranty_months' => 12,
+        ]);
+
+        $evaluator = app(QuotationScoringService::class);
+        $evaluation = $evaluator->evaluateQuotations($pr);
+
+        $this->assertEquals($q1->id, $evaluation['best_score_id']);
+        $this->assertNotEmpty($evaluation['methodology']);
+        $this->assertCount(4, $evaluation['methodology']['components']);
     }
 
     public function test_awarding_vendor_updates_status_and_records_audit_trail(): void

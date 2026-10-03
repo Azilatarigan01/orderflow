@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Carbon\Carbon;
+use App\Services\AuditTrailService;
 
 class PurchaseRequest extends Model
 {
@@ -19,6 +20,7 @@ class PurchaseRequest extends Model
         'title',
         'description',
         'required_date',
+        'rfq_deadline',
         'estimated_total',
         'status',
         'attachment_path',
@@ -26,8 +28,19 @@ class PurchaseRequest extends Model
 
     protected $casts = [
         'required_date' => 'date',
+        'rfq_deadline' => 'datetime',
         'estimated_total' => 'decimal:2',
     ];
+
+    public function getIsRfqClosedAttribute(): bool
+    {
+        return $this->rfq_deadline ? Carbon::now()->isAfter($this->rfq_deadline) : false;
+    }
+
+    public function getFormattedRfqDeadlineAttribute(): ?string
+    {
+        return $this->rfq_deadline ? $this->rfq_deadline->format('d M Y, H:i') . ' WIB' : null;
+    }
 
     public function user(): BelongsTo
     {
@@ -54,6 +67,11 @@ class PurchaseRequest extends Model
         return $this->hasMany(StatusHistory::class)->orderBy('created_at', 'desc');
     }
 
+    public function statusHistories(): HasMany
+    {
+        return $this->histories();
+    }
+
     public function approvals(): HasMany
     {
         return $this->hasMany(PrApproval::class)->orderBy('tier_level', 'asc');
@@ -67,6 +85,45 @@ class PurchaseRequest extends Model
     public function selectedQuotation(): ?Quotation
     {
         return $this->quotations()->where('is_selected', true)->first();
+    }
+
+    /**
+     * Get all awarded quotations for multi-vendor / split PO pengadaan
+     */
+    public function selectedQuotations()
+    {
+        return $this->quotations()->where('is_selected', true)->with('vendor')->get();
+    }
+
+    /**
+     * Get awarded quotations that have not yet had a PO issued
+     */
+    public function unissuedQuotations()
+    {
+        $issuedQuotationIds = $this->purchaseOrders()->pluck('quotation_id')->filter()->toArray();
+        return $this->quotations()
+            ->where('is_selected', true)
+            ->whereNotIn('id', $issuedQuotationIds)
+            ->with('vendor')
+            ->get();
+    }
+
+    /**
+     * Check if PR has multi-vendor quotations or multiple POs issued
+     */
+    public function hasMultipleVendors(): bool
+    {
+        return $this->quotations()->where('is_selected', true)->count() > 1 || $this->purchaseOrders()->count() > 1;
+    }
+
+    public function purchaseOrders(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class);
+    }
+
+    public function purchaseOrder(): ?PurchaseOrder
+    {
+        return $this->purchaseOrders()->latest()->first();
     }
 
     /**
@@ -85,23 +142,12 @@ class PurchaseRequest extends Model
     }
 
     /**
-     * Generate standard sequential PR number (PR-YYYYMM-XXXX)
+     * Generate Enterprise sequential PR number with department code and atomic lock
+     * Format: PR/{DEPT}/{YEAR}/{MONTH}/{XXXX} (e.g. PR/IT/2026/09/0001)
      */
-    public static function generatePrNumber(): string
+    public static function generatePrNumber($department = null): string
     {
-        $prefix = 'PR-' . date('Ym') . '-';
-        $latest = self::where('pr_number', 'like', $prefix . '%')
-            ->orderBy('id', 'desc')
-            ->first();
-
-        if ($latest) {
-            $lastNumber = (int) substr($latest->pr_number, -4);
-            $nextNumber = str_pad((string) ($lastNumber + 1), 4, '0', STR_PAD_LEFT);
-        } else {
-            $nextNumber = '0001';
-        }
-
-        return $prefix . $nextNumber;
+        return \App\Services\DocumentNumberService::generatePrNumber($department);
     }
 
     /**
@@ -113,10 +159,23 @@ class PurchaseRequest extends Model
             return $query;
         }
 
-        if ($user->hasRole('finance')) {
-            // Finance only sees submitted / reviewed PRs, or their own PRs
+        if ($user->hasRole('hod')) {
+            // HoD / Direksi sees strategic PRs exceeding 25M threshold or their own department's PRs
             return $query->where(function ($q) use ($user) {
-                $q->whereIn('status', ['submitted', 'approved', 'processing', 'completed'])
+                $q->where(function ($sub) {
+                    $sub->where('estimated_total', '>', 25000000)
+                        ->where('status', '!=', 'draft');
+                })->orWhere(function ($sub) use ($user) {
+                    $sub->where('department_id', $user->department_id)
+                        ->where('status', '!=', 'draft');
+                })->orWhere('user_id', $user->id);
+            });
+        }
+
+        if ($user->hasRole('finance')) {
+            // Finance sees non-draft company-wide PRs (> 5M threshold) or any PR in financial processing/invoicing, or own PRs
+            return $query->where(function ($q) use ($user) {
+                $q->where('status', '!=', 'draft')
                   ->orWhere('user_id', $user->id);
             });
         }
@@ -130,7 +189,7 @@ class PurchaseRequest extends Model
             });
         }
 
-        // Regular Requester: strictly ONLY their own submitted or draft PRs
+        // Regular Requester / Warehouse: strictly ONLY their own submitted or draft PRs
         return $query->where('user_id', $user->id);
     }
 
@@ -155,12 +214,115 @@ class PurchaseRequest extends Model
     }
 
     /**
+     * Check if PR can be recalled/withdrawn back to draft by user
+     */
+    public function canBeWithdrawnBy(User $user): bool
+    {
+        if ($this->status !== 'submitted') {
+            return false;
+        }
+
+        return $this->user_id === $user->id || $user->hasRole('admin');
+    }
+
+    /**
+     * Check if PR can be cancelled by user
+     */
+    public function canBeCancelledBy(User $user): bool
+    {
+        if (!in_array($this->status, ['draft', 'submitted'])) {
+            return false;
+        }
+
+        return $this->user_id === $user->id || $user->hasRole('admin');
+    }
+
+    /**
      * Refresh and recalculate total from items
      */
     public function recalculateTotal(): void
     {
         $total = $this->items()->sum('subtotal');
         $this->update(['estimated_total' => $total]);
+    }
+
+    /**
+     * Recalculate and synchronize PR status based on issued Purchase Orders and fulfillment
+     */
+    public function recalculateStatus(): void
+    {
+        // Only evaluate if PR is in active post-approval lifecycle
+        if (!in_array($this->status, ['approved', 'processing', 'completed'])) {
+            return;
+        }
+
+        $this->loadMissing(['items', 'purchaseOrders.items']);
+
+        // Only consider non-cancelled POs
+        $activePos = $this->purchaseOrders->where('status', '!=', 'cancelled');
+
+        if ($activePos->isEmpty()) {
+            if ($this->status !== 'approved') {
+                $this->update(['status' => 'approved']);
+            }
+            return;
+        }
+
+        // Check if all requested items are covered by POs
+        $totalPrQty = (float) $this->items->sum('quantity');
+        $totalPoOrderedQty = (float) $activePos->flatMap->items->sum('quantity');
+        $isQuantityCovered = ($totalPrQty > 0) ? ($totalPoOrderedQty >= $totalPrQty) : false;
+
+        // Check each active PO status: All active POs must be 'completed'
+        $allPosCompleted = $activePos->isNotEmpty() && $activePos->every(fn($po) => $po->status === 'completed');
+
+        if ($isQuantityCovered && $allPosCompleted) {
+            if ($this->status !== 'completed') {
+                $oldStatus = $this->status;
+                $this->update(['status' => 'completed']);
+
+                // Status history
+                StatusHistory::create([
+                    'purchase_request_id' => $this->id,
+                    'from_status' => $oldStatus,
+                    'to_status' => 'completed',
+                    'user_id' => auth()->id() ?? $this->user_id,
+                    'notes' => 'Seluruh barang/jasa pengadaan telah diterima lengkap di gudang (seluruh PO selesai). Dokumen PR otomatis tuntas (Completed).',
+                ]);
+
+                // Notify Requester
+                InAppNotification::create([
+                    'user_id' => $this->user_id,
+                    'title' => "Pengadaan Selesai (PR #{$this->pr_number})",
+                    'message' => "Pengadaan untuk PR '{$this->title}' telah selesai seluruhnya. Seluruh fisik barang/jasa telah diverifikasi & diterima.",
+                    'link' => route('purchase-requests.show', $this),
+                    'type' => 'pr_completed',
+                ]);
+
+                AuditTrailService::record(
+                    action: 'pr_completed',
+                    entity: $this,
+                    entityLabel: $this->pr_number,
+                    beforeState: ['status' => $oldStatus],
+                    afterState: ['status' => 'completed'],
+                    description: "PR {$this->pr_number} otomatis berubah ke completed karena seluruh PO ({$activePos->count()} PO) telah tuntas diterima.",
+                );
+            }
+        } else {
+            // Active POs exist, but items are not fully covered or some POs are still issued / partially_received
+            if ($this->status !== 'processing') {
+                $oldStatus = $this->status;
+                $this->update(['status' => 'processing']);
+
+                StatusHistory::create([
+                    'purchase_request_id' => $this->id,
+                    'from_status' => $oldStatus,
+                    'to_status' => 'processing',
+                    'user_id' => auth()->id() ?? $this->user_id,
+                    'notes' => 'Dokumen PR berstatus Diproses Pengadaan (PO aktif berjalan / pengiriman bertahap).',
+                ]);
+            }
+        }
     }
 
     public function getStatusLabelAttribute(): string

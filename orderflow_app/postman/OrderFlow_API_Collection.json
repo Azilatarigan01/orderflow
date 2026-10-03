@@ -1,0 +1,848 @@
+{
+    "info": {
+        "_postman_id": "b89c32f1-6789-4a12-9c3a-8f0a2341e987",
+        "name": "OrderFlow Enterprise REST API (Tahap 7)",
+        "description": "Postman Collection resmi untuk pengujian dan integrasi modul Procurement OrderFlow Enterprise.\nMendukung autentikasi Laravel Sanctum, role-based scoping, segregasi tugas (SoD), dan format respons standar:\n\n```json\n{\n  \"success\": true,\n  \"message\": \"...\",\n  \"data\": { ... }\n}\n```",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{auth_token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "1. Authentication",
+            "item": [
+                {
+                    "name": "POST Login (Requester) - Auto Save Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "var jsonData = pm.response.json();",
+                                    "pm.test(\"Response success is true\", function () {",
+                                    "    pm.expect(jsonData.success).to.eql(true);",
+                                    "});",
+                                    "if (jsonData.data && jsonData.data.access_token) {",
+                                    "    pm.environment.set(\"auth_token\", jsonData.data.access_token);",
+                                    "    console.log(\"Saved auth_token to environment\");",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"requester@orderflow.com\",\n    \"password\": \"password\",\n    \"device_name\": \"Postman Client\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "login"
+                            ]
+                        },
+                        "description": "Login sebagai Requester untuk mendapatkan Bearer Token Sanctum."
+                    }
+                },
+                {
+                    "name": "POST Login (Manager IT) - Auto Save Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "var jsonData = pm.response.json();",
+                                    "if (jsonData.data && jsonData.data.access_token) {",
+                                    "    pm.environment.set(\"auth_token\", jsonData.data.access_token);",
+                                    "    console.log(\"Switched to Manager IT token\");",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"manager.it@orderflow.com\",\n    \"password\": \"password\",\n    \"device_name\": \"Postman Manager\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "login"
+                            ]
+                        },
+                        "description": "Login sebagai Manager IT untuk menyetujui (Approve) PR tahap pertama."
+                    }
+                },
+                {
+                    "name": "GET Current Profile (/api/me)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/me",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "me"
+                            ]
+                        },
+                        "description": "Mengambil info profil user yang sedang aktif berdasarkan Bearer token."
+                    }
+                },
+                {
+                    "name": "POST Logout (/api/logout)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/logout",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "logout"
+                            ]
+                        },
+                        "description": "Mencabut (revoke) personal access token yang sedang aktif."
+                    }
+                },
+                {
+                    "name": "[Negative Test] POST Login Salah Password (401)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"requester@orderflow.com\",\n    \"password\": \"wrongpassword123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "[Negative Test] POST Login Kosong / Validasi (422)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                                    "    pm.response.to.have.status(422);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "login"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "2. Purchase Requests",
+            "item": [
+                {
+                    "name": "GET List Purchase Requests",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200 OK\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests?status=&search=&per_page=15",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests"
+                            ],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "",
+                                    "description": "Filter status (pending_approval, approved, rejected, draft)"
+                                },
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "description": "Cari kode PR atau judul pengadaan"
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "description": "Jumlah data per halaman pagination"
+                                }
+                            ]
+                        },
+                        "description": "Mengambil daftar PR dengan pagination & filter. Otomatis dibatasi sesuai hak akses role (Requester hanya melihat PR departemennya)."
+                    }
+                },
+                {
+                    "name": "POST Create Purchase Request (Auto Save pr_id)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 201 Created\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "var res = pm.response.json();",
+                                    "if (res.data && res.data.id) {",
+                                    "    pm.environment.set(\"pr_id\", res.data.id);",
+                                    "    console.log(\"Saved pr_id:\", res.data.id);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"Pengadaan Server GPU AI & Switch Core 10Gbps via API\",\n    \"department_id\": 1,\n    \"required_date\": \"2026-10-09\",\n    \"priority\": \"high\",\n    \"notes\": \"Kebutuhan urgent untuk training LLM internal divisi riset IT.\",\n    \"items\": [\n        {\n            \"item_name\": \"Server Rackmount 2U Dual RTX 4090 24GB\",\n            \"quantity\": 2,\n            \"unit\": \"unit\",\n            \"estimated_price\": 45000000,\n            \"specs\": \"RAM 128GB ECC, NVMe 4TB Enterprise, Redundant PSU 1600W\"\n        },\n        {\n            \"item_name\": \"Switch Managed L3 24-Port 10G SFP+\",\n            \"quantity\": 1,\n            \"unit\": \"unit\",\n            \"estimated_price\": 18500000,\n            \"specs\": \"Dual PSU, Backplane throughput 480Gbps\"\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests"
+                            ]
+                        },
+                        "description": "Membuat Purchase Request baru beserta line items dan otomatis menginisialisasi jenjang approval (Manager & Finance) berdasarkan threshold nilai anggaran."
+                    }
+                },
+                {
+                    "name": "GET Purchase Request Detail",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200 OK\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests/{{pr_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests",
+                                "{{pr_id}}"
+                            ]
+                        },
+                        "description": "Mengambil detail lengkap PR termasuk daftar item, riwayat approval workflow, dan penawaran vendor (quotation) jika ada."
+                    }
+                },
+                {
+                    "name": "POST Approve Purchase Request (Gunakan Token Manager)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200 OK\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"notes\": \"Disetujui via Mobile/REST API. Spesifikasi sudah sesuai kebutuhan roadmap IT Q4.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests/{{pr_id}}/approve",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests",
+                                "{{pr_id}}",
+                                "approve"
+                            ]
+                        },
+                        "description": "Menyetujui PR pada tier berjalan sesuai hierarki otorisasi. Catatan: Harus dilakukan oleh Approver yang berwenang (bukan pembuat PR / anti self-approval)."
+                    }
+                },
+                {
+                    "name": "POST Reject Purchase Request",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200 OK\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rejection_reason\": \"Anggaran IT divisi telah melampaui alokasi Q3. Silakan ajukan ulang dengan penyesuaian kuantitas atau di periode Q4.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests/{{pr_id}}/reject",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests",
+                                "{{pr_id}}",
+                                "reject"
+                            ]
+                        },
+                        "description": "Menolak pengajuan PR dengan mencantumkan alasan penolakan wajib (rejection_reason)."
+                    }
+                },
+                {
+                    "name": "[Negative Test] GET Detail PR Not Found (404)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 404 Not Found\", function () {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests/999999",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests",
+                                "999999"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "[Negative Test] POST Approve Anti Self-Approval (403)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 403 Forbidden\", function () {",
+                                    "    pm.response.to.have.status(403);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"notes\": \"Mencoba approve PR sendiri tanpa hak otoritas.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests/{{pr_id}}/approve",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests",
+                                "{{pr_id}}",
+                                "approve"
+                            ]
+                        },
+                        "description": "Menguji validasi Segregation of Duties: Requester dilarang menyetujui pengajuannya sendiri."
+                    }
+                },
+                {
+                    "name": "[Negative Test] POST Create PR Validasi Error (422)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                                    "    pm.response.to.have.status(422);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"\",\n    \"items\": []\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "[Negative Test] POST Reject PR Tanpa Alasan (422)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                                    "    pm.response.to.have.status(422);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests/{{pr_id}}/reject",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests",
+                                "{{pr_id}}",
+                                "reject"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "3. Vendors Directory",
+            "item": [
+                {
+                    "name": "GET List Vendors",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200 OK\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/vendors?category=&search=&per_page=10",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "vendors"
+                            ],
+                            "query": [
+                                {
+                                    "key": "category",
+                                    "value": "",
+                                    "description": "Kategori vendor (misal: Hardware IT, Logistik, ATK)"
+                                },
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "description": "Cari nama atau email vendor"
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "10",
+                                    "description": "Paginasi"
+                                }
+                            ]
+                        },
+                        "description": "Mengambil direktori vendor aktif beserta rating performa, kategori, dan kontak resmi."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "4. Dashboard Summary",
+            "item": [
+                {
+                    "name": "GET Dashboard Summary Metrics",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200 OK\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/dashboard/summary",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "dashboard",
+                                "summary"
+                            ]
+                        },
+                        "description": "Mengambil metrik ringkasan KPI eksekutif secara dinamis disesuaikan dengan peran user login."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "5. Security & Unauthorized",
+            "item": [
+                {
+                    "name": "[Negative Test] Akses Tanpa Bearer Token (401)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 401 Unauthenticated\", function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-requests",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "purchase-requests"
+                            ]
+                        },
+                        "description": "Menguji bahwa semua protected endpoint wajib menyertakan valid Bearer Token."
+                    }
+                }
+            ]
+        }
+    ]
+}

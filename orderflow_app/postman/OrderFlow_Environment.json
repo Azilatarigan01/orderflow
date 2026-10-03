@@ -1,0 +1,31 @@
+{
+    "id": "c215e982-1456-4b21-9988-112233445566",
+    "name": "OrderFlow Local Environment",
+    "values": [
+        {
+            "key": "base_url",
+            "value": "http://127.0.0.1:8000",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "auth_token",
+            "value": "",
+            "type": "secret",
+            "enabled": true
+        },
+        {
+            "key": "pr_id",
+            "value": "1",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "vendor_id",
+            "value": "1",
+            "type": "default",
+            "enabled": true
+        }
+    ],
+    "_postman_variable_scope": "environment"
+}

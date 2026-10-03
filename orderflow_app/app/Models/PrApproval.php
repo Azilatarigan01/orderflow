@@ -16,14 +16,22 @@ class PrApproval extends Model
         'role_required',
         'department_id',
         'approver_id',
+        'assigned_approver_id',
+        'reassigned_at',
+        'reassigned_by',
+        'reassign_reason',
+        'is_acting',
+        'acting_for_user_id',
         'status',
         'notes',
         'acted_at',
     ];
 
     protected $casts = [
-        'tier_level' => 'integer',
-        'acted_at' => 'datetime',
+        'tier_level'    => 'integer',
+        'is_acting'     => 'boolean',
+        'acted_at'      => 'datetime',
+        'reassigned_at' => 'datetime',
     ];
 
     public function purchaseRequest(): BelongsTo
@@ -36,6 +44,21 @@ class PrApproval extends Model
         return $this->belongsTo(User::class, 'approver_id');
     }
 
+    public function assignedApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_approver_id');
+    }
+
+    public function reassignedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reassigned_by');
+    }
+
+    public function actingForUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'acting_for_user_id');
+    }
+
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
@@ -44,10 +67,10 @@ class PrApproval extends Model
     public function getTierLabelAttribute(): string
     {
         return match ($this->tier_level) {
-            1 => 'Tier 1: Manager Divisi (' . ($this->department?->code ?? 'Dept') . ')',
-            2 => 'Tier 2: Tim Keuangan (Finance)',
-            3 => 'Tier 3: Direksi / Head of Dept',
-            default => 'Tier ' . $this->tier_level,
+            1 => 'Tahap 1: Manager Divisi (' . ($this->department?->code ?? 'Divisi') . ')',
+            2 => 'Tahap 2: Verifikasi Anggaran Keuangan (Finance)',
+            3 => 'Tahap 3: Otorisasi Direksi / Head of Department',
+            default => 'Tahap ' . $this->tier_level,
         };
     }
 

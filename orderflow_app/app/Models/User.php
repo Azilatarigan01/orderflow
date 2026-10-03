@@ -4,12 +4,14 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -93,6 +95,16 @@ class User extends Authenticatable
         return $this->role === 'auditor';
     }
 
+    public function isHod(): bool
+    {
+        return $this->role === 'hod';
+    }
+
+    public function isWarehouse(): bool
+    {
+        return $this->role === 'warehouse';
+    }
+
     public function getRoleLabelAttribute(): string
     {
         return match ($this->role) {
@@ -101,7 +113,37 @@ class User extends Authenticatable
             'procurement' => 'Procurement Officer',
             'finance' => 'Finance & Accounting',
             'auditor' => 'Internal Auditor',
+            'hod' => 'Head of Department / Direksi',
+            'warehouse' => 'Staf Gudang & Logistik',
             default => 'Employee / Requester',
         };
+    }
+
+    public function actingDelegationsGiven()
+    {
+        return $this->hasMany(ActingDelegation::class, 'delegator_user_id');
+    }
+
+    public function actingDelegationsReceived()
+    {
+        return $this->hasMany(ActingDelegation::class, 'delegatee_user_id');
+    }
+
+    /**
+     * Get currently active acting delegation granted to this user for a given role
+     */
+    public function getActiveActingDelegationFor(string $role, ?int $departmentId = null): ?ActingDelegation
+    {
+        $query = $this->actingDelegationsReceived()
+            ->activeNow()
+            ->where('role_delegated', $role);
+
+        if ($departmentId !== null) {
+            $query->whereHas('delegator', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            });
+        }
+
+        return $query->with('delegator')->first();
     }
 }

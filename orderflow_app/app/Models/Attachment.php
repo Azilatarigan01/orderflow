@@ -20,6 +20,20 @@ class Attachment extends Model
         'uploaded_by',
     ];
 
+    protected static function booted()
+    {
+        static::deleting(function ($attachment) {
+            if ($attachment->file_path) {
+                if (Storage::disk('public')->exists($attachment->file_path)) {
+                    Storage::disk('public')->delete($attachment->file_path);
+                }
+                if (Storage::disk('local')->exists($attachment->file_path)) {
+                    Storage::disk('local')->delete($attachment->file_path);
+                }
+            }
+        });
+    }
+
     public function purchaseRequest(): BelongsTo
     {
         return $this->belongsTo(PurchaseRequest::class);
