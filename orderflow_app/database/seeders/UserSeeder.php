@@ -167,9 +167,9 @@ class UserSeeder extends Seeder
                 'phone' => '081234567895',
                 'is_active' => true,
             ],
-            // ── Official Demo Accounts (@orderflow.demo) ─────────────────────
+            // ── Official Enterprise Accounts (@orderflow.demo) ───────────────
             [
-                'name' => 'Demo Requester (Budi Santoso)',
+                'name' => 'Budi Santoso (Staff IT & Requester)',
                 'email' => 'requester@orderflow.demo',
                 'password' => Hash::make('password'),
                 'role' => 'requester',
@@ -178,7 +178,7 @@ class UserSeeder extends Seeder
                 'is_active' => true,
             ],
             [
-                'name' => 'Demo Manager (Anton Wijaya)',
+                'name' => 'Anton Wijaya (Manager IT & Operasional)',
                 'email' => 'manager@orderflow.demo',
                 'password' => Hash::make('password'),
                 'role' => 'manager',
@@ -187,7 +187,7 @@ class UserSeeder extends Seeder
                 'is_active' => true,
             ],
             [
-                'name' => 'Demo Procurement (Dewi Sartika)',
+                'name' => 'Dewi Sartika (Lead Procurement Officer)',
                 'email' => 'procurement@orderflow.demo',
                 'password' => Hash::make('password'),
                 'role' => 'procurement',
@@ -196,7 +196,7 @@ class UserSeeder extends Seeder
                 'is_active' => true,
             ],
             [
-                'name' => 'Demo Finance (Rina Hendrawan)',
+                'name' => 'Rina Hendrawan (Finance & Accounting Lead)',
                 'email' => 'finance@orderflow.demo',
                 'password' => Hash::make('password'),
                 'role' => 'finance',
@@ -205,7 +205,7 @@ class UserSeeder extends Seeder
                 'is_active' => true,
             ],
             [
-                'name' => 'Demo Administrator (Super Admin)',
+                'name' => 'Super Administrator (IT Enterprise)',
                 'email' => 'admin@orderflow.demo',
                 'password' => Hash::make('password'),
                 'role' => 'admin',
@@ -214,7 +214,7 @@ class UserSeeder extends Seeder
                 'is_active' => true,
             ],
             [
-                'name' => 'Demo Warehouse (Joko Susilo)',
+                'name' => 'Joko Susilo (Supervisor Logistik & Gudang)',
                 'email' => 'warehouse@orderflow.demo',
                 'password' => Hash::make('password'),
                 'role' => 'warehouse',
@@ -223,7 +223,7 @@ class UserSeeder extends Seeder
                 'is_active' => true,
             ],
             [
-                'name' => 'Demo Auditor (Hendra Gunawan)',
+                'name' => 'Hendra Gunawan (Lead Internal Auditor)',
                 'email' => 'auditor@orderflow.demo',
                 'password' => Hash::make('password'),
                 'role' => 'auditor',
