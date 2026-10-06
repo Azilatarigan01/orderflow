@@ -1,0 +1,29 @@
+{
+  "_auto-BOPCoApp.js": {
+    "file": "assets/auto-BOPCoApp.js",
+    "name": "auto"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-hD9fLBjZ.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-DmjVPJN3.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "imports": [
+      "_auto-BOPCoApp.js"
+    ]
+  },
+  "resources/js/react-dashboard.jsx": {
+    "file": "assets/react-dashboard-BGUC0XFX.js",
+    "name": "react-dashboard",
+    "src": "resources/js/react-dashboard.jsx",
+    "isEntry": true,
+    "imports": [
+      "_auto-BOPCoApp.js"
+    ]
+  }
+}

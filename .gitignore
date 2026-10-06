@@ -1,6 +1,5 @@
 # OrderFlow Root Gitignore
 /orderflow_app/node_modules
-/orderflow_app/public/build
 /orderflow_app/public/hot
 /orderflow_app/public/storage
 /orderflow_app/storage/*.key
