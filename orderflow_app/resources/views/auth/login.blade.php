@@ -63,106 +63,28 @@
             <svg class="w-4 h-4 text-orange-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
         </button>
 
-        <!-- Enterprise Single Sign-On / Role Fast-Track Selector -->
-        <div class="pt-5 mt-6 border-t border-slate-100">
-            <div class="flex items-center justify-between mb-3">
-                <span class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                    Akses Cepat Akun Demo (1-Klik)
+        <!-- Enterprise Security & Corporate Governance Notice -->
+        <div class="pt-6 mt-6 border-t border-slate-100 space-y-4">
+            <div class="flex items-center gap-3 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-slate-800">Protokol Keamanan ISO 27001</h4>
+                    <p class="text-[11px] text-slate-500 leading-tight">Sesi login terenkripsi end-to-end dengan pelacakan jejak audit kepatuhan GCG.</p>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs text-slate-500 pt-1 px-1">
+                <span class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Sistem Operasional Normal
                 </span>
-                <span class="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Pilih peran:</span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 text-xs">
-                <!-- Requester -->
-                <button type="button" onclick="fillRole('requester@orderflow.demo', 'Requester (Pemohon)', this)" class="role-btn p-2.5 bg-slate-50 hover:bg-sky-50 border border-slate-200/80 hover:border-sky-300 rounded-xl text-left transition duration-150 group">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 group-hover:text-sky-700">Requester</span>
-                        <span class="w-2 h-2 rounded-full bg-sky-500"></span>
-                    </div>
-                    <div class="text-[10px] text-slate-500 mt-0.5 truncate">requester@orderflow.demo</div>
-                </button>
-
-                <!-- Manager -->
-                <button type="button" onclick="fillRole('manager@orderflow.demo', 'Manager Divisi', this)" class="role-btn p-2.5 bg-slate-50 hover:bg-amber-50 border border-slate-200/80 hover:border-amber-300 rounded-xl text-left transition duration-150 group">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 group-hover:text-amber-700">Manager Divisi</span>
-                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                    </div>
-                    <div class="text-[10px] text-slate-500 mt-0.5 truncate">manager@orderflow.demo</div>
-                </button>
-
-                <!-- Procurement -->
-                <button type="button" onclick="fillRole('procurement@orderflow.demo', 'Procurement Officer', this)" class="role-btn p-2.5 bg-slate-50 hover:bg-blue-50 border border-slate-200/80 hover:border-blue-300 rounded-xl text-left transition duration-150 group">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 group-hover:text-blue-700">Procurement</span>
-                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                    </div>
-                    <div class="text-[10px] text-slate-500 mt-0.5 truncate">procurement@orderflow.demo</div>
-                </button>
-
-                <!-- Finance -->
-                <button type="button" onclick="fillRole('finance@orderflow.demo', 'Finance Officer', this)" class="role-btn p-2.5 bg-slate-50 hover:bg-emerald-50 border border-slate-200/80 hover:border-emerald-300 rounded-xl text-left transition duration-150 group">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 group-hover:text-emerald-700">Finance</span>
-                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    </div>
-                    <div class="text-[10px] text-slate-500 mt-0.5 truncate">finance@orderflow.demo</div>
-                </button>
-
-                <!-- Admin -->
-                <button type="button" onclick="fillRole('admin@orderflow.demo', 'Super Administrator', this)" class="role-btn p-2.5 bg-slate-50 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-300 rounded-xl text-left transition duration-150 group">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 group-hover:text-rose-700">Super Admin</span>
-                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-                    </div>
-                    <div class="text-[10px] text-slate-500 mt-0.5 truncate">admin@orderflow.demo</div>
-                </button>
-
-                <!-- Warehouse / Gudang -->
-                <button type="button" onclick="fillRole('warehouse@orderflow.demo', 'Staff Gudang & Logistik', this)" class="role-btn p-2.5 bg-slate-50 hover:bg-teal-50 border border-slate-200/80 hover:border-teal-300 rounded-xl text-left transition duration-150 group">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 group-hover:text-teal-700">Staff Gudang</span>
-                        <span class="w-2 h-2 rounded-full bg-teal-500"></span>
-                    </div>
-                    <div class="text-[10px] text-slate-500 mt-0.5 truncate">warehouse@orderflow.demo</div>
-                </button>
-            </div>
-            
-            <div id="selection-hint" class="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 text-center transition-all duration-200">
-                <span>Klik salah satu peran di atas untuk pengisian otomatis.</span>
-                <span class="block mt-0.5 font-mono text-[10px] text-slate-400">Password semua akun demo: <strong>password</strong></span>
+                <a href="mailto:helpdesk@orderflow.internal" class="text-blue-600 hover:text-blue-700 font-medium hover:underline flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    Bantuan IT Service Desk
+                </a>
             </div>
         </div>
     </form>
-
-    <script>
-        function fillRole(email, roleLabel, btn) {
-            const emailInput = document.getElementById('email');
-            const passwordInput = document.getElementById('password');
-            const hint = document.getElementById('selection-hint');
-            
-            emailInput.value = email;
-            passwordInput.value = 'password';
-
-            // Highlight button
-            document.querySelectorAll('.role-btn').forEach(b => {
-                b.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
-            });
-            if (btn) {
-                btn.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
-            }
-            
-            if (hint) {
-                hint.className = 'mt-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 text-center font-medium transition-all duration-200';
-                hint.innerHTML = `&check; Terpilih: <strong>${roleLabel}</strong> (${email}). Klik tombol Masuk di atas.`;
-            }
-
-            // Visual feedback on input
-            emailInput.classList.add('ring-2', 'ring-blue-500');
-            setTimeout(() => {
-                emailInput.classList.remove('ring-2', 'ring-blue-500');
-            }, 700);
-        }
-    </script>
 </x-guest-layout>
