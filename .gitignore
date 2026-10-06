@@ -26,3 +26,4 @@ Thumbs.db
 /orderflow_app/storage/app/backups/*
 !/orderflow_app/storage/app/backups/.gitignore
 /orderflow_app/test_api_results.json
+*.exe
