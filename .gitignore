@@ -4,12 +4,12 @@
 /orderflow_app/public/hot
 /orderflow_app/public/storage
 /orderflow_app/storage/*.key
-/orderflow_app/vendor
 /orderflow_app/.env
 /orderflow_app/.env.backup
 /orderflow_app/.env.production
 /orderflow_app/database/database.sqlite
 /orderflow_app/database/database.sqlite-journal
+!/orderflow_app/database/demo_seed.sqlite
 
 # Root temporary / IDE files
 .idea
