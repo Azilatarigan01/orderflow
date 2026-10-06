@@ -19,7 +19,10 @@ foreach ($requiredDirs as $dir) {
 }
 
 // Inisialisasi Database SQLite di /tmp jika belum ada
-$sourceDb = __DIR__ . '/../orderflow_app/database/database.sqlite';
+$sourceDb = __DIR__ . '/../orderflow_app/database/demo_seed.sqlite';
+if (! file_exists($sourceDb)) {
+    $sourceDb = __DIR__ . '/../orderflow_app/database/database.sqlite';
+}
 $targetDb = $tmpDir . '/database.sqlite';
 
 if (! file_exists($targetDb)) {

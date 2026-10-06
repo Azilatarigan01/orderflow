@@ -17,7 +17,10 @@ foreach ($requiredDirs as $dir) {
     }
 }
 
-$sourceDb = __DIR__ . '/../database/database.sqlite';
+$sourceDb = __DIR__ . '/../database/demo_seed.sqlite';
+if (! file_exists($sourceDb)) {
+    $sourceDb = __DIR__ . '/../database/database.sqlite';
+}
 $targetDb = $tmpDir . '/database.sqlite';
 
 if (! file_exists($targetDb)) {
